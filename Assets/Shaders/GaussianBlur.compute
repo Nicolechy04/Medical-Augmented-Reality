@@ -1,0 +1,88 @@
+﻿// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+RWTexture3D<float4> Result;
+float ResolutionX;
+float ResolutionY;
+float ResolutionZ;
+
+
+sampler3D Tex3D;
+const static int size = 5;
+float sigma = 1;
+
+
+float IntensityAt(float x, float y, float z)
+{
+	return tex3Dlod(Tex3D, float4(x, y, z, 0.0f));
+}
+
+[numthreads(8,8,8)]
+
+void CSMain
+
+	(uint3 id : SV_DispatchThreadID)
+{
+	float x = id.x / ResolutionX;
+	float y = id.y / ResolutionY;
+	float z = id.z / ResolutionZ;
+	
+	float sumIntensity = 0.0f;
+	
+	float pi = 3.14159265;
+	float kernel [size][size];
+	float mean = size / 2;
+	float sum = 0.0f;
+	
+	
+	 // calculating the kernel depending on size and sigma
+	
+	//x=r (row) and y=c (column)
+	int r = 0;
+	int c = 0;
+	
+
+	for (r = 0; r < size; ++r)
+	{
+		for (c = 0; c < size; ++c)
+		{
+			
+                //calculate gauss function for every entry in the kernel
+				kernel[r][c] = exp(-0.5f * (pow((r - mean) / sigma, 2.0f) + pow((c - mean) / sigma, 2.0f)))
+                                 / (2 * pi * sigma * sigma);
+
+                
+			sum += kernel[r][c];
+		}
+
+	}
+        // Normalize the kernel
+	for (r = 0; r < size; ++r)
+	{
+		for (c = 0; c < size; ++c)
+		{
+			kernel[r][c] /= sum;
+		}
+	}
+	
+	
+	//apply kernel on volume
+	//x=r (row) and y=c (column) 
+	sumIntensity = 0.0f;
+	
+	for (r = 0; r < size; ++r)
+	{
+		for (c = 0; c < size; ++c)
+		{
+					
+			sumIntensity += IntensityAt(x - ((size / 2) / ResolutionX) + r / ResolutionX, y - ((size / 2) / ResolutionY) + c / ResolutionY, z) * kernel[r][c];
+
+		}
+	}
+	
+	Result[id.xyz] = sumIntensity;
+	
+
+}

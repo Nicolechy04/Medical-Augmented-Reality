@@ -1,0 +1,415 @@
+﻿// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+#pragma kernel ThreeDimGradientFilter
+#pragma kernel GradientFilter2Dim
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+
+//use 3x3 sobel filter in x and y direction to approximate the gradient for each voxel. By scaling the intensity of the pixel depending on the gradient, edges are enhanced
+RWTexture3D<float4> Result;
+RWTexture2D<float4> Result2D;
+float ResolutionX;
+float ResolutionY;
+float ResolutionZ;
+
+sampler3D Tex3D;
+sampler2D Tex2D;
+//standard sobel filter size is 3
+const static int size = 3;
+float sigma = 1.0f;
+float contrast = 1.0f;
+float threshold = 0.2f;
+float maxthreshold = 1.0f;
+
+bool addFeatureEnhancement = false;
+float sigmaFeature = 1.0f;
+float contrastFeature = 1.0f;
+float3 viewDirection;
+
+
+float IntensityAt(float x, float y, float z)
+{
+	return tex3Dlod(Tex3D, float4(x, y, z, 0.0f));
+}
+
+float IntensityAt(float x, float y)
+{
+	return tex2Dlod(Tex2D, float4(x, y, 0.0f, 0.0f));
+}
+
+
+[numthreads(8, 8, 8)]
+void CSMain(uint3 id : SV_DispatchThreadID)
+{
+	float x = id.x / ResolutionX;
+	float y = id.y / ResolutionY;
+	float z = id.z / ResolutionZ;
+	
+	
+
+	float sobelKernelX[size][size];
+	float sobelKernelY[size][size];
+	
+	sobelKernelX[0][0] = 1.0f;
+	sobelKernelX[0][1] = 0.0f;
+	sobelKernelX[0][2] = -1.0f;
+	sobelKernelX[1][0] = 2.0f;
+	sobelKernelX[1][1] = 0.0f;
+	sobelKernelX[1][2] = -2.0f;
+	sobelKernelX[2][0] = 1.0f;
+	sobelKernelX[2][1] = 0.0f;
+	sobelKernelX[2][2] = -1.0f;
+	
+	sobelKernelY[0][0] = 1.0f;
+	sobelKernelY[0][1] = 2.0f;
+	sobelKernelY[0][2] = 1.0f;
+	sobelKernelY[1][0] = 0.0f;
+	sobelKernelY[1][1] = 0.0f;
+	sobelKernelY[1][2] = 0.0f;
+	sobelKernelY[2][0] = -1.0f;
+	sobelKernelY[2][1] = -2.0f;
+	sobelKernelY[2][2] = -1.0f;
+	
+
+	
+	
+	//x=r (row) and y=c (column) 
+	float sumIntensityX = 0.0f;
+	
+	float sumIntensityY = 0.0f;
+	int r;
+	int c;
+	
+	for (r = 0; r < size; ++r)
+	{
+		for (c = 0; c < size; ++c)
+		{
+			//apply kernel on volume in x direction
+			sumIntensityX += IntensityAt(x - ((size / 2) / ResolutionX) + r / ResolutionX, y - ((size / 2) / ResolutionY) + c / ResolutionY, z) * sobelKernelX[r][c];
+			//apply kernel on volume in y direction
+			sumIntensityY += IntensityAt(x - ((size / 2) / ResolutionX) + r / ResolutionX, y - ((size / 2) / ResolutionY) + c / ResolutionY, z) * sobelKernelY[r][c];
+			
+		}
+	}
+	
+	//squaring and rooting intensity values gets also rid of negatives
+	float gradientLength = sqrt(sumIntensityX * sumIntensityX + sumIntensityY * sumIntensityY);
+	
+	if (gradientLength <= threshold | gradientLength >= maxthreshold)
+	{
+		gradientLength = 0.0f;
+	}
+	
+	//edges are emphasized where the gradient is orthogonal to the view direction additionally to the gradient filter enhancement
+	if (addFeatureEnhancement)
+	{
+		//float angle = atan2(sumIntensityY, sumIntensityX);
+		//float3 gradientDirection = float3(cos(angle), sin(angle), 0.0f);
+		float3 gradientDirection = float3(sumIntensityX, sumIntensityX, 0.0f);
+		float featureEnhancement = sigmaFeature * pow(1 - abs(dot(viewDirection, gradientDirection)), contrastFeature);
+		
+		
+		Result[id.xyz] = IntensityAt(x, y, z) + sigma * pow(gradientLength, contrast) * IntensityAt(x, y, z) + featureEnhancement * IntensityAt(x, y, z);
+		
+	}
+	else
+	{
+		
+		Result[id.xyz] = IntensityAt(x, y, z) + sigma * pow(gradientLength, contrast) * IntensityAt(x, y, z);
+		
+	}
+	
+		
+	
+	
+}
+
+
+//uses 2D sobel filter to detect edges and stores them in a 2D black and white texture
+[numthreads(8, 8, 8)]
+void GradientFilter2Dim(uint3 id : SV_DispatchThreadID)
+{
+	float x = id.x / ResolutionX;
+	float y = id.y / ResolutionY;
+
+
+	float sobelKernelX[size][size];
+	float sobelKernelY[size][size];
+	
+	sobelKernelX[0][0] = 1.0f;
+	sobelKernelX[0][1] = 0.0f;
+	sobelKernelX[0][2] = -1.0f;
+	sobelKernelX[1][0] = 2.0f;
+	sobelKernelX[1][1] = 0.0f;
+	sobelKernelX[1][2] = -2.0f;
+	sobelKernelX[2][0] = 1.0f;
+	sobelKernelX[2][1] = 0.0f;
+	sobelKernelX[2][2] = -1.0f;
+	
+	sobelKernelY[0][0] = 1.0f;
+	sobelKernelY[0][1] = 2.0f;
+	sobelKernelY[0][2] = 1.0f;
+	sobelKernelY[1][0] = 0.0f;
+	sobelKernelY[1][1] = 0.0f;
+	sobelKernelY[1][2] = 0.0f;
+	sobelKernelY[2][0] = -1.0f;
+	sobelKernelY[2][1] = -2.0f;
+	sobelKernelY[2][2] = -1.0f;
+	
+
+	
+	
+	//x=r (row) and y=c (column) 
+	float sumIntensityX = 0.0f;
+	
+	float sumIntensityY = 0.0f;
+	int r;
+	int c;
+	
+	for (r = 0; r < size; ++r)
+	{
+		for (c = 0; c < size; ++c)
+		{
+			//apply kernel on volume in x direction
+			sumIntensityX += IntensityAt(x - ((size / 2) / ResolutionX) + r / ResolutionX, y - ((size / 2) / ResolutionY) + c / ResolutionY) * sobelKernelX[r][c];
+			//apply kernel on volume in x direction
+			sumIntensityY += IntensityAt(x - ((size / 2) / ResolutionX) + r / ResolutionX, y - ((size / 2) / ResolutionY) + c / ResolutionY) * sobelKernelY[r][c];
+			
+		}
+	}
+	
+	//squaring and rooting intensity values gets also rid of negatives
+	float gradientLength = sqrt(sumIntensityX * sumIntensityX + sumIntensityY * sumIntensityY);
+	
+	if (gradientLength >= threshold)
+	{
+		Result2D[id.xy] = float4(1.0f,1.0f,1.0f,1.0f);
+	}
+	else
+	{
+		Result2D[id.xy] = float4(0.0f, 0.0f, 0.0f, 0.0f);
+	}
+
+}
+
+
+// uses thee dimensional sobel filter
+[numthreads(8, 8, 8)]
+void ThreeDimGradientFilter(uint3 id : SV_DispatchThreadID)
+{
+	float x = id.x / ResolutionX;
+	float y = id.y / ResolutionY;
+	float z = id.z / ResolutionZ;
+	
+	
+	//X0 = 3d sobel filter in x direction at plane -;-;-1
+	//X1 = 3d sobel filter in x direction at plane -;-;0
+	//X2 = 3d sobel filter in x direction at plane -;-;1
+	//for Y and Z respectively;
+	
+	//sobel filter in x direction
+	float sobelKernelX0[size][size];
+	
+	sobelKernelX0[0][0] = -1.0f;
+	sobelKernelX0[0][1] = -3.0f;
+	sobelKernelX0[0][2] = -1.0f;
+	sobelKernelX0[1][0] = -3.0f;
+	sobelKernelX0[1][1] = -6.0f;
+	sobelKernelX0[1][2] = -3.0f;
+	sobelKernelX0[2][0] = -1.0f;
+	sobelKernelX0[2][1] = -3.0f;
+	sobelKernelX0[2][2] = -1.0f;
+	
+	float sobelKernelX1[size][size];
+	
+	sobelKernelX1[0][0] = 0.0f;
+	sobelKernelX1[0][1] = 0.0f;
+	sobelKernelX1[0][2] = 0.0f;
+	sobelKernelX1[1][0] = 0.0f;
+	sobelKernelX1[1][1] = 0.0f;
+	sobelKernelX1[1][2] = 0.0f;
+	sobelKernelX1[2][0] = 0.0f;
+	sobelKernelX1[2][1] = 0.0f;
+	sobelKernelX1[2][2] = 0.0f;
+	
+	float sobelKernelX2[size][size];
+	
+	sobelKernelX2[0][0] = 1.0f;
+	sobelKernelX2[0][1] = 3.0f;
+	sobelKernelX2[0][2] = 1.0f;
+	sobelKernelX2[1][0] = 3.0f;
+	sobelKernelX2[1][1] = 6.0f;
+	sobelKernelX2[1][2] = 3.0f;
+	sobelKernelX2[2][0] = 1.0f;
+	sobelKernelX2[2][1] = 3.0f;
+	sobelKernelX2[2][2] = 1.0f;
+	
+	
+	//sobel filter in y direction
+	float sobelKernelY0[size][size];
+	
+	sobelKernelY0[0][0] = 1.0f;
+	sobelKernelY0[0][1] = 3.0f;
+	sobelKernelY0[0][2] = 1.0f;
+	sobelKernelY0[1][0] = 0.0f;
+	sobelKernelY0[1][1] = 0.0f;
+	sobelKernelY0[1][2] = 0.0f;
+	sobelKernelY0[2][0] = -1.0f;
+	sobelKernelY0[2][1] = -3.0f;
+	sobelKernelY0[2][2] = -1.0f;
+	
+	float sobelKernelY1[size][size];
+	
+	sobelKernelY1[0][0] = 3.0f;
+	sobelKernelY1[0][1] = 6.0f;
+	sobelKernelY1[0][2] = 3.0f;
+	sobelKernelY1[1][0] = 0.0f;
+	sobelKernelY1[1][1] = 0.0f;
+	sobelKernelY1[1][2] = 0.0f;
+	sobelKernelY1[2][0] = -3.0f;
+	sobelKernelY1[2][1] = -6.0f;
+	sobelKernelY1[2][2] = -3.0f;
+	
+	float sobelKernelY2[size][size];
+	
+	sobelKernelY2[0][0] = 1.0f;
+	sobelKernelY2[0][1] = 3.0f;
+	sobelKernelY2[0][2] = 1.0f;
+	sobelKernelY2[1][0] = 0.0f;
+	sobelKernelY2[1][1] = 0.0f;
+	sobelKernelY2[1][2] = 0.0f;
+	sobelKernelY2[2][0] = -1.0f;
+	sobelKernelY2[2][1] = -3.0f;
+	sobelKernelY2[2][2] = -1.0f;
+	
+
+	//sobel filter in z direction
+	float sobelKernelZ0[size][size];
+	
+	sobelKernelZ0[0][0] = -1.0f;
+	sobelKernelZ0[0][1] = 0.0f;
+	sobelKernelZ0[0][2] = 1.0f;
+	sobelKernelZ0[1][0] = -3.0f;
+	sobelKernelZ0[1][1] = 0.0f;
+	sobelKernelZ0[1][2] = 3.0f;
+	sobelKernelZ0[2][0] = -1.0f;
+	sobelKernelZ0[2][1] = 0.0f;
+	sobelKernelZ0[2][2] = 1.0f;
+	
+	float sobelKernelZ1[size][size];
+	
+	sobelKernelZ1[0][0] = -3.0f;
+	sobelKernelZ1[0][1] = 0.0f;
+	sobelKernelZ1[0][2] = 3.0f;
+	sobelKernelZ1[1][0] = -6.0f;
+	sobelKernelZ1[1][1] = 0.0f;
+	sobelKernelZ1[1][2] = 6.0f;
+	sobelKernelZ1[2][0] = -3.0f;
+	sobelKernelZ1[2][1] = 0.0f;
+	sobelKernelZ1[2][2] = 3.0f;
+	
+	float sobelKernelZ2[size][size];
+	
+	sobelKernelZ2[0][0] = -1.0f;
+	sobelKernelZ2[0][1] = 0.0f;
+	sobelKernelZ2[0][2] = 1.0f;
+	sobelKernelZ2[1][0] = -3.0f;
+	sobelKernelZ2[1][1] = 0.0f;
+	sobelKernelZ2[1][2] = 3.0f;
+	sobelKernelZ2[2][0] = -1.0f;
+	sobelKernelZ2[2][1] = 0.0f;
+	sobelKernelZ2[2][2] = 1.0f;
+	
+
+	
+	//apply kernel on volume in x direction
+	//x=r (row) and y=c (column) 
+	float sumIntensityX0 = 0.0f;
+	float sumIntensityX1 = 0.0f;
+	float sumIntensityX2 = 0.0f;
+	float sumIntensityX = 0.0f;
+	int r;
+	int c;
+	
+	for (r = 0; r < size; ++r)
+	{
+		for (c = 0; c < size; ++c)
+		{
+			sumIntensityX0 += IntensityAt(x - ((size / 2) / ResolutionX) + r / ResolutionX, y - ((size / 2) / ResolutionY) + c / ResolutionY, z - 1) * sobelKernelX0[r][c];
+			sumIntensityX1 += IntensityAt(x - ((size / 2) / ResolutionX) + r / ResolutionX, y - ((size / 2) / ResolutionY) + c / ResolutionY, z) * sobelKernelX1[r][c];
+			sumIntensityX2 += IntensityAt(x - ((size / 2) / ResolutionX) + r / ResolutionX, y - ((size / 2) / ResolutionY) + c / ResolutionY, z + 1) * sobelKernelX2[r][c];
+		}
+	}
+	
+	sumIntensityX = sumIntensityX0 + sumIntensityX1 + sumIntensityX2;
+	
+	
+	//apply kernel on volume in y direction
+	//x=r (row) and y=c (column) 
+	float sumIntensityY0 = 0.0f;
+	float sumIntensityY1 = 0.0f;
+	float sumIntensityY2 = 0.0f;
+	float sumIntensityY = 0.0f;
+	
+	for (r = 0; r < size; ++r)
+	{
+		for (c = 0; c < size; ++c)
+		{
+			sumIntensityY0 += IntensityAt(x - ((size / 2) / ResolutionX) + r / ResolutionX, y - ((size / 2) / ResolutionY) + c / ResolutionY, z - 1) * sobelKernelY0[r][c];
+			sumIntensityY1 += IntensityAt(x - ((size / 2) / ResolutionX) + r / ResolutionX, y - ((size / 2) / ResolutionY) + c / ResolutionY, z) * sobelKernelY1[r][c];
+			sumIntensityY2 += IntensityAt(x - ((size / 2) / ResolutionX) + r / ResolutionX, y - ((size / 2) / ResolutionY) + c / ResolutionY, z + 1) * sobelKernelY2[r][c];
+		}
+	}
+	
+	sumIntensityY = sumIntensityY0 + sumIntensityY1 + sumIntensityY2;
+	
+	
+	//apply kernel on volume in z direction
+	//x=r (row) and y=c (column) 
+	float sumIntensityZ0 = 0.0f;
+	float sumIntensityZ1 = 0.0f;
+	float sumIntensityZ2 = 0.0f;
+	float sumIntensityZ = 0.0f;
+	
+	for (r = 0; r < size; ++r)
+	{
+		for (c = 0; c < size; ++c)
+		{
+			sumIntensityZ0 += IntensityAt(x - ((size / 2) / ResolutionX) + r / ResolutionX, y - ((size / 2) / ResolutionY) + c / ResolutionY, z - 1) * sobelKernelZ0[r][c];
+			sumIntensityZ1 += IntensityAt(x - ((size / 2) / ResolutionX) + r / ResolutionX, y - ((size / 2) / ResolutionY) + c / ResolutionY, z) * sobelKernelZ1[r][c];
+			sumIntensityZ2 += IntensityAt(x - ((size / 2) / ResolutionX) + r / ResolutionX, y - ((size / 2) / ResolutionY) + c / ResolutionY, z + 1) * sobelKernelZ2[r][c];
+		}
+	}
+	
+	sumIntensityZ = sumIntensityZ0 + sumIntensityZ1 + sumIntensityZ2;
+
+	
+	float gradientlength = (sqrt(length(sumIntensityY) * length(sumIntensityY) + length(sumIntensityZ) * length(sumIntensityZ) + length(sumIntensityX) * length(sumIntensityZ)));
+	if (gradientlength <= threshold | gradientlength >= maxthreshold)
+	{
+		gradientlength = 0.0f;
+	}
+	
+	
+	
+	
+	//edges are emphasized where the gradient is orthogonal to the view direction additionally to the gradient filter enhancement
+	if (addFeatureEnhancement)
+	{
+		//float angle = atan2(sumIntensityY, sumIntensityX);
+		//float3 gradientDirection = float3(cos(angle), sin(angle), 0.0f);
+		float3 gradientDirection = float3(sumIntensityX, sumIntensityX, sumIntensityZ);
+		float featureEnhancement = sigmaFeature * pow(1 - abs(dot(viewDirection, gradientDirection)), contrastFeature);
+		
+		
+		Result[id.xyz] = IntensityAt(x, y, z) + sigma * gradientlength * IntensityAt(x, y, z) + featureEnhancement * IntensityAt(x, y, z);
+		
+	}
+	else
+	{
+		
+		Result[id.xyz] = IntensityAt(x, y, z) + sigma * pow(gradientlength, contrast) * IntensityAt(x, y, z);
+		
+	}
+
+}

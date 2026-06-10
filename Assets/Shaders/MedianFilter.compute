@@ -1,0 +1,126 @@
+﻿// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+RWTexture3D<float4> Result;
+float ResolutionX;
+float ResolutionY;
+float ResolutionZ;
+sampler3D Tex3D;
+
+
+const static int size = 3;
+float values[size*size*size];
+
+float ContrastValue;
+float ContrastMiddleColor;
+bool ContrastAdjustmentOn;
+
+float IntensityAt(float x, float y, float z)
+{
+	return tex3Dlod(Tex3D, float4(x, y, z, 0.0f));
+}
+
+//insertion sort for floats
+void insertionSort(float array[size*size*size], int n)
+{
+	int i;
+	float key;
+	int j;
+	for (i = 1; i < n; i++)
+	{
+		key = array[i];
+		j = i - 1;
+
+    
+		while (j >= 0 && array[j] > key)
+		{
+			array[j + 1] = array[j];
+			j = j - 1;
+		}
+		array[j + 1] = key;
+	}
+}
+
+float AdjustContrast(float intensity)
+{
+	
+	return float(saturate(lerp(float(ContrastMiddleColor), intensity, ContrastValue)));
+
+}
+
+[numthreads(8,8,8)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+	float x = id.x / ResolutionX;
+	float y = id.y / ResolutionY;
+	float z = id.z / ResolutionZ;
+	float MedianIntensity = 0.0f;
+	
+	//x=r (row) and y=c (column) and z=d (depth)
+	int r = 0;
+	int c = 0;
+	int d = 0;
+	int index = 0;
+	//fill list with values from size x size x size median filter
+	for (r = 0; r < size; ++r)
+	{
+		for (c = 0; c < size; ++c)
+		{
+			for (d = 0; d < size; ++d)
+			{
+				
+				values[index] = IntensityAt(x - ((size / 2) / ResolutionX) + r / ResolutionX, y - ((size / 2) / ResolutionY) + c / ResolutionY, z - ((size / 2) / ResolutionZ) + d / ResolutionZ);
+
+				index++;
+				
+			}
+		}
+	}
+	//sort the gathered values
+	//sorting this way does somehow not work; instead copying the content of the sorting function below does work
+//	insertionSort(values, size * size * size);
+	
+	//bubblesort for testing
+/*	int i;
+	int n;
+	[unroll(size*size*size)]
+	for (n = size * size *size; n > 1; n--)
+	{
+		[unroll(size*size*size)]
+		for (i = 0; i < size * size *size- 1; ++i)
+		{
+		
+			if (values[i] > values[i + 1])
+			{
+			//swap
+				float temp = values[i];
+				values[i] = values[i + 1];
+				values[i + 1] = temp;
+				
+			}
+		
+			
+		}
+	}
+	
+*/	
+	//set the median to be the value in the middle of the sorted array
+	MedianIntensity = values[(size * size * size) / 2];
+	
+	insertionSort(values, size * size * size);
+	
+	
+
+	if (ContrastAdjustmentOn)
+	{
+		Result[id.xyz] = AdjustContrast(MedianIntensity);
+	}
+	else
+	{
+		Result[id.xyz] = MedianIntensity;
+	}
+	
+}
+

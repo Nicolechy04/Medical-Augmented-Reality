@@ -1,0 +1,302 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: OCT_labelled1
+  m_Shader: {fileID: 4800000, guid: d506d04f25c88f34da656f7c125889d0, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords:
+  - STOCHASTIC_JITTER
+  m_InvalidKeywords:
+  - BAKE_VOLUME
+  - ENHANCE_SPECLES
+  - ENHANCE_SPECLES_ENFACE_COLORING
+  - Inst_BP_OnlyFirstHit
+  - RPE_BP_OnlyFirstHit
+  - RPE_Receive_Shadows
+  - UI_IBVESSEL_SECTION_ACTIVE
+  - UI_ILM_SECTION_ACTIVE
+  - UI_RPE_SECTION_ACTIVE
+  - UI_VESSEL_SECTION_ACTIVE
+  - USE_ENFACE_COLOR
+  - USE_NEW_VOLUME
+  - USE_OAC_VESSEL_SEG
+  - USE_VESSEL_BASE_COLOR
+  - USE_VESSEL_SKELETON_SEG_FROM_RADIUS_MAP
+  - Vessel_BP_OnlyFirstHit
+  - _RENDERING_RETINA_BLINN_PHONG
+  - _SECTION_ALL
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs:
+    - CompositingTransferFunction:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - EnfaceTex:
+        m_Texture: {fileID: 2800000, guid: f3bdc01bd6f76534aa64b7f444b8baef, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - FeatureVolumeTex:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - OACSegmentedVesselVol:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - SegmentationTex2D:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - SegmentationTex2DBottomUp:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - ShadowMapTex:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - VesselDepthMapTex:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - VesselDepthTex:
+        m_Texture: {fileID: 2800000, guid: 81e78f0e7cbe435449ff679e3f3a4b28, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - VesselDepthTexBottomUp:
+        m_Texture: {fileID: 2800000, guid: a64e5601c77566a48a6f90d7fdd38ebe, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - VesselMapTex:
+        m_Texture: {fileID: 8400000, guid: e0bf5dddf4683a74c8609ed8407389ac, type: 2}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - VesselSkeletonVolumeTex:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - VesselSkeletonVolumeTexFromRadiusMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - VolumeTex:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    m_Ints: []
+    m_Floats:
+    - AboveILMAlphaMultiplier: 0
+    - AboveILMBlinnPhong_k_a: 0.2
+    - AboveILMBlinnPhong_k_d: 0.6
+    - AboveILMBlinnPhong_k_s: 0.2
+    - AboveILMBlinnPhong_s1: 5
+    - AboveILMBlinnPhong_s2: 5
+    - AboveILMIsoValue: 0
+    - AboveILM_BP_OnlyFirstHit: 0
+    - AlphaMultiplier: 12
+    - ArtifactAlphaMultiplier: 9.91
+    - ArtifactBlinnPhong_k_a: 0.2
+    - ArtifactBlinnPhong_k_d: 0.6
+    - ArtifactBlinnPhong_k_s: 0.2
+    - ArtifactBlinnPhong_s1: 5
+    - ArtifactBlinnPhong_s1_percentage: 5
+    - ArtifactBlinnPhong_s2: 5
+    - ArtifactIsoValue: 0.1
+    - BP_k_a: 0
+    - BP_k_d: 0.475
+    - BP_k_s: 0.284
+    - BP_s1: 5
+    - BP_s1_percentage: 50
+    - BP_s2: 5
+    - BlinnPhongTextureX: 512
+    - BlinnPhongTextureY: 512
+    - BlinnPhongTextureZ: 49
+    - BlinnPhong_k_a: 0
+    - BlinnPhong_k_d: 0
+    - BlinnPhong_k_s: 0
+    - BlinnPhong_s: 1
+    - Center: 0
+    - ClippingPlanes: 0
+    - CompositingAlphaFactor: 0
+    - ENHANCE_SPECLES: 1
+    - ENHANCE_SPECLES_ENFACE_COLORING: 1
+    - EnfaceHueShift: 0
+    - FeatureAlphaCurve: 2.38
+    - FeatureAlphaMultiplier: 3
+    - FeatureBandHigh: 0.195
+    - FeatureBandLow: 0.077
+    - FeatureHighAlphaMultiplier: 16
+    - FeatureIsoSoftness: 2
+    - FeatureIsoValue: 0
+    - FeatureLowAlphaMultiplier: 0
+    - FeatureSamplingDensity: 1
+    - FeatureTexResX: 448
+    - FeatureTexResY: 448
+    - FeatureTexResZ: 49
+    - GradientSmoothKernelSize: 18
+    - IBVesselAlphaMultiplier: 7.7
+    - IBVesselBlinnPhong_k_a: 0
+    - IBVesselBlinnPhong_k_d: 0
+    - IBVesselBlinnPhong_k_s: 0
+    - IBVesselBlinnPhong_s1: 100
+    - IBVesselBlinnPhong_s1_percentage: 83.5
+    - IBVesselBlinnPhong_s2: 9.3
+    - IBVesselIsoValue: 0
+    - IBVessel_BP_OnlyFirstHit: 0
+    - IBVessel_Receive_Shadows: 0
+    - ILMAlphaMultiplier: 4.8
+    - ILMBlinnPhong_k_a: 0
+    - ILMBlinnPhong_k_d: 0.585
+    - ILMBlinnPhong_k_s: 0.648
+    - ILMBlinnPhong_s1: 100
+    - ILMBlinnPhong_s1_percentage: 75
+    - ILMBlinnPhong_s2: 10
+    - ILMIsoValue: 0.128
+    - ILM_BP_OnlyFirstHit: 0
+    - ILM_Receive_Shadows: 0
+    - InstAlphaMultiplier: 1000
+    - InstBlinnPhong_k_a: 0.107
+    - InstBlinnPhong_k_d: 0.267
+    - InstBlinnPhong_k_s: 0.178
+    - InstBlinnPhong_s1: 84
+    - InstBlinnPhong_s1_percentage: 59.3
+    - InstBlinnPhong_s2: 15.1
+    - InstIsoValue: 0.5
+    - Inst_BP_OnlyFirstHit: 1
+    - IsoValue: 0.208
+    - MaxDistArtifact: 50.9
+    - MaxDistILM: 5.2
+    - MaxDistInst: 25
+    - MaxDistOffset: 0
+    - MaxDistRPE: 100
+    - MaxSurfaceSubsteps: 42.8
+    - MaxThicknessVessel: 0
+    - Multiplier: 2.35
+    - NumberOfCuttingPlanes: 1
+    - RPE: 0.281
+    - RPEAlphaMultiplier: 300
+    - RPEBlinnPhong_k_a: 0
+    - RPEBlinnPhong_k_d: 0
+    - RPEBlinnPhong_k_s: 0
+    - RPEBlinnPhong_s1: 100
+    - RPEBlinnPhong_s1_percentage: 77.5
+    - RPEBlinnPhong_s2: 10
+    - RPEIsoValue: 0
+    - RPE_BP_OnlyFirstHit: 1
+    - RPE_Receive_Shadows: 1
+    - ReduceFraying: 0
+    - SHOW_FEATURE_VOLUME: 0
+    - STOCHASTIC_JITTER: 1
+    - ShadowAlphaMul: 16
+    - ShowRTShadows: 0
+    - ShowShadows: 0
+    - SpeclesMultiplier: 5000
+    - SpeclesPower: 4.6
+    - StepSize: 0.0274
+    - SurfaceSamplingDensity: 5.72
+    - USE_ENFACE_COLOR: 0
+    - USE_ENFACE_VESSEL_SEG: 0
+    - USE_MANUAL_VESSEL_SEG: 0
+    - USE_MANUEL_VESSEL_SEG: 1
+    - USE_NEW_VOLUME: 1
+    - USE_OAC_VESSEL_SEG: 0
+    - USE_VESSEL_BASE_COLOR: 1
+    - USE_VESSEL_SKELETON_SEG: 0
+    - USE_VESSEL_SKELETON_SEG_FROM_RADIUS_MAP: 1
+    - VesselAlphaMultiplier: 230
+    - VesselBlinnPhong_k_a: 0
+    - VesselBlinnPhong_k_d: 1
+    - VesselBlinnPhong_k_s: 0
+    - VesselBlinnPhong_s1: 52.9
+    - VesselBlinnPhong_s1_percentage: 100
+    - VesselBlinnPhong_s2: 10
+    - VesselColorEnhancement: 1
+    - VesselIsoValue: 0
+    - VesselSegmentationIsoValue: 0
+    - Vessel_BP_OnlyFirstHit: 1
+    - Vessel_Receive_Shadows: 0
+    - _Blend: 10
+    - _Crease: 0
+    - _Exponent: 1
+    - _Rendering: 7
+    - _Section: 5
+    - vILMBlinnPhong_s1_percentage: 5
+    - v_Exponent: 1
+    m_Colors:
+    - AboveILMBaseColor: {r: 1, g: 0, b: 0, a: 1}
+    - AmbientColor: {r: 1, g: 1, b: 1, a: 1}
+    - ArtifactBaseColor: {r: 0.9528302, g: 0.03146139, b: 0.8999355, a: 1}
+    - BPAboveILMAmbientColor: {r: 0.9339623, g: 0.09251513, b: 0.09251513, a: 1}
+    - BPAboveILMOutlineColor: {r: 0.9056604, g: 0.08116765, b: 0.08116765, a: 1}
+    - BPArtifactAmbientColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
+    - BPArtifactOutlineColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
+    - BPIBVesselAmbientColor: {r: 1, g: 0, b: 0, a: 0.561}
+    - BPIBVesselOutlineColor: {r: 0, g: 0, b: 0, a: 0}
+    - BPILMAmbientColor: {r: 0.03773582, g: 0.03755782, b: 0.03755782, a: 1}
+    - BPILMOutlineColor: {r: 0.9716981, g: 0.9671146, b: 0.9671146, a: 1}
+    - BPInstAmbientColor: {r: 0.906, g: 0.85, b: 0.85, a: 1}
+    - BPInstOutlineColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
+    - BPRPEAmbientColor: {r: 1, g: 1, b: 1, a: 1}
+    - BPRPEOutlineColor: {r: 0.651, g: 0.11999788, b: 0.3559979, a: 1}
+    - BPVesselAmbientColor: {r: 1, g: 0, b: 0, a: 1}
+    - BPVesselOutlineColor: {r: 1, g: 0, b: 0, a: 1}
+    - BaseColor: {r: 1, g: 1, b: 1, a: 1}
+    - BlinnPhongAmbientColor: {r: 0.9622642, g: 0.9577252, b: 0.9577252, a: 0.83137256}
+    - BlinnPhongBaseColor: {r: 0.11320752, g: 0.11320752, b: 0.11320752, a: 0.015686275}
+    - BlinnPhongLightPos: {r: 0.5, g: 1, b: 0, a: 1}
+    - BlinnPhongOutlineColor: {r: 0.8439001, g: 0.8773585, b: 0.07863116, a: 1}
+    - ClippingPlane0: {r: 0, g: 0, b: 0, a: 0}
+    - ClippingPlane1: {r: 1, g: 0, b: 0, a: 1}
+    - ClippingPlane2: {r: 1, g: 0, b: 0, a: 1}
+    - ClippingPlane3: {r: 1, g: 0, b: 0, a: 1}
+    - FeatureHighColor: {r: 1, g: 0.14999998, b: 0, a: 1}
+    - FeatureLowColor: {r: 0, g: 0.19999993, b: 1, a: 1}
+    - FeatureMidColor: {r: 0.19999996, g: 1, b: 0.24999997, a: 1}
+    - FeatureMidHighColor: {r: 1, g: 0.95, b: 0.14999998, a: 1}
+    - FeatureMidLowColor: {r: 0, g: 0.9, b: 1, a: 1}
+    - IBVesselColor: {r: 89, g: 1, b: 4, a: 0.56078434}
+    - ILMBaseColor: {r: 0.2801565, g: 1, b: 0, a: 1}
+    - InBetweenVesselColor: {r: 0.6784314, g: 0.10588236, b: 0.10588236, a: 1}
+    - InstBaseColor: {r: 8, g: 123, b: 123, a: 1}
+    - OutlineColor: {r: 0, g: 0, b: 0, a: 1}
+    - RPEBaseColor: {r: 0.62352943, g: 0.16862746, b: 0.1882353, a: 1}
+    - ShadowColor: {r: 0, g: 0, b: 0, a: 1}
+    - Val00: {r: 0, g: 0, b: 0, a: 0}
+    - Val01: {r: 0, g: 0, b: 0, a: 0}
+    - Val02: {r: 0, g: 0, b: 0, a: 0}
+    - Val03: {r: 0, g: 0, b: 0, a: 0}
+    - Val04: {r: 0.068, g: 0.088, b: 0.387, a: 0}
+    - Val05: {r: 0, g: 0.451, b: 0.205, a: 0}
+    - Val06: {r: 0.019, g: 0.388, b: 0, a: 0}
+    - Val07: {r: 0.373, g: 0.434, b: 0.068, a: 0}
+    - Val08: {r: 0.575, g: 0.147, b: 0.024, a: 0}
+    - Val09: {r: 0.594, g: 0.132, b: 0.036, a: 0}
+    - Val10: {r: 0.509, g: 0.121, b: 0.05, a: 0}
+    - Val11: {r: 0.434, g: 0.128, b: 0.072, a: 0}
+    - Val12: {r: 0.415, g: 0.026, b: 0.006, a: 0}
+    - Val13: {r: 0.377, g: 0.091, b: 0.091, a: 0}
+    - Val14: {r: 0.387, g: 0.093, b: 0.093, a: 0}
+    - Val15: {r: 0.377, g: 0.055, b: 0.055, a: 0}
+    - Val16: {r: 0.349, g: 0.084, b: 0.084, a: 0}
+    - Val17: {r: 0.311, g: 0.069, b: 0.069, a: 0}
+    - Val18: {r: 0.311, g: 0.054, b: 0.054, a: 0}
+    - Val19: {r: 0.274, g: 0.088, b: 0.055, a: 0}
+    - Val20: {r: 0.236, g: 0.072, b: 0.026, a: 1}
+    - VesselBaseColor: {r: 0.745283, g: 0.13007298, b: 0.13007298, a: 1}
+  m_BuildTextureStacks: []
+  m_AllowLocking: 1
