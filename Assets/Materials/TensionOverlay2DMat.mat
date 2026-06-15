@@ -1,0 +1,53 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: TensionOverlay2DMat
+  m_Shader: {fileID: 4800000, guid: 47ca1458d4f52462ab5d40dd097ed85d, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords: []
+  m_InvalidKeywords:
+  - _SHOWNEEDLETIP_ON
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs:
+    - _BscanTex:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _TensionTex:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    m_Ints: []
+    m_Floats:
+    - _AlphaCurve: 2
+    - _AspectRatio: 0.9765625
+    - _FlipBscanY: 0
+    - _HighTensionPulse: 0
+    - _NeedleTipRadius: 0.02
+    - _OverlayOpacity: 0.75
+    - _ShowNeedleTip: 1
+    - _TensionThreshold: 0.05
+    m_Colors:
+    - _ColorHigh: {r: 1, g: 0.14999998, b: 0, a: 1}
+    - _ColorLow: {r: 0, g: 0.19999996, b: 1, a: 1}
+    - _ColorMid: {r: 0.19999996, g: 1, b: 0.24999997, a: 1}
+    - _ColorMidHigh: {r: 1, g: 0.95, b: 0.14999998, a: 1}
+    - _ColorMidLow: {r: 0, g: 0.9, b: 1, a: 1}
+    - _NeedleTipUV: {r: 0.5644445, g: 0.53808594, b: 0, a: 0}
+  m_BuildTextureStacks: []
+  m_AllowLocking: 1
