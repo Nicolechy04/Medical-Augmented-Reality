@@ -107,7 +107,7 @@ public class RealInjectionAngleController : MonoBehaviour
         int vx, vy, vz;
         LocalToVoxel(local, out vx, out vy, out vz);
 
-        if (DebugMarker != null)
+        if (DebugMarker != null && Player.VolumeVoxelW > 0 && Player.VolumeVoxelH > 0 && Player.VolumeVoxelD > 0)
         {
             DebugMarker.localPosition = new Vector3(
                 (vx / (float)Player.VolumeVoxelW) - 0.5f,
@@ -140,6 +140,12 @@ public class RealInjectionAngleController : MonoBehaviour
 
     void LocalToVoxel(Vector3 local, out int vx, out int vy, out int vz)
     {
+        if (Player == null || Player.VolumeVoxelW <= 0 || Player.VolumeVoxelH <= 0 || Player.VolumeVoxelD <= 0)
+        {
+            vx = 0; vy = 0; vz = 0;
+            return;
+        }
+
         float depthVal = Component(local, DepthAxis);
         float colVal   = Component(local, ColumnAxis);
         float sliceVal = Component(local, SliceAxis);

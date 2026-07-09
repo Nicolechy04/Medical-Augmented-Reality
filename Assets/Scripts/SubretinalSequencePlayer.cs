@@ -28,8 +28,8 @@ public class SubretinalSequencePlayer : MonoBehaviour
     [Header("Volume Rendering")]
     public Material VolumeMaterial;
     [Range(1, 16)]
-    [Tooltip("Load every Nth B-scan. 1=all 513 slices (slow), 4=128 slices (recommended)")]
-    public int BscanStep = 4;
+    [Tooltip("Load every Nth B-scan. 1=all 513 slices (slow), 8=64 slices (fast for ring demo)")]
+    public int BscanStep = 8;
 
     [Header("2D Canvas Overlay")]
     public RawImage CanvasDisplay;
@@ -46,6 +46,24 @@ public class SubretinalSequencePlayer : MonoBehaviour
     public bool AutoLoadOnStart = true;
     public bool AutoPlay        = false;
     [Range(0.5f, 10f)] public float PlayFPS = 3f;
+
+    [Header("3D/2D Scene Anchoring")]
+    [Tooltip("The root Transform of the 3D DVR volume cube. Its position and rotation will be set each frame from the iOCT JSON data.")]
+    public Transform VolumeTransform;
+
+    [Tooltip("A flat Quad/Plane shown below the 3D volume as the 2D enface (top-down) view.")]
+    public Transform EnfacePlane;
+
+    [Tooltip("Scale factor: mm world coordinates → Unity units. 0.05 means 1 mm = 0.05 Unity units.")]
+    public float MmToUnits = 0.05f;
+
+    [Tooltip("How far below the volume origin (in Unity units) the 2D enface plane sits. Make more negative to move plane lower.")]
+    public float PlaneOffsetY = -0.67f;
+
+    [Header("Angle Demo Override")]
+    [Tooltip("Check this to manually override the injection angle with the slider below to test green/yellow/red color changes.")]
+    public bool OverrideAngle = false;
+    [Range(0f, 90f)] public float DemoAngleDeg = 45f;
 
     [Header("UI Bindings")]
     public Slider FrameSlider;
@@ -70,6 +88,43 @@ public class SubretinalSequencePlayer : MonoBehaviour
     public Vector3    EyeballCenter   { get; private set; }
     public Vector3    IOCTOrigin      { get; private set; }
     public Quaternion IOCTRotation    { get; private set; } = Quaternion.identity;
+
+    // ── 2D keypoint angle (reliable every frame, no trajectory needed) ─────────
+    // Parsed directly from JSON "Keypoints" → "Cannula SRI" → Tip + Start.
+    // Angle = atan2(|dx|, |dy|) = degrees from vertical (0°=vertical, 90°=horizontal).
+    // Returns -1 when the cannula is out of frame (Start is null in the JSON).
+    public Vector2 CannulaTip2D   { get; private set; }   // pixels in 2048×2048 image
+    public Vector2 CannulaStart2D { get; private set; }   // pixels — entry point at eye surface
+    public float   InjectionAngleDeg { get; private set; } = -1f;  // -1 = no reading
+
+    // ── 3D Cannula local position relative to volume center ─────────────────────
+    // Maps the world coordinates to the local volume cube [-0.5, 0.5] space.
+    public Vector3 CannulaTipLocal { get; private set; }
+
+    // ── Distance to Retina (ILM) in millimeters ─────────────────────────────────
+    // Exposed to drive dynamic effects (like sonar pulse speed) in the HUD.
+    public float ILMDistanceMM { get; private set; } = -1f;
+
+    // ── Cannula Tip Depth in Millimeters ────────────────────────────────────────
+    // Exposes the raw vertical depth of the cannula relative to the scanner top.
+    public float CannulaTipDepthMM { get; private set; } = 0f;
+
+    // ── RPE Distance in Millimeters ─────────────────────────────────────────────
+    // Distance from the cannula tip to the Retinal Pigment Epithelium (RPE) base layer.
+    public float RPEDistanceMM { get; private set; } = -1f;
+
+    // ── Crosshair Center (microscope image pixel space) ─────────────────────────
+    // Centroid of the iOCT scan footprint on the 2048×2048 microscope.png.
+    // Used to align the 3D volume exactly over the correct spot of the 2D plane.
+    public Vector2 OCTCrosshairCenter { get; private set; } = new Vector2(1024f, 1024f);
+
+    [Header("Volume Coordinate Mapping")]
+    public float LateralExtentMM = 30f;
+    public float DepthExtentMM   = 40f;
+    public enum LocalAxis { X, Y, Z }
+    public LocalAxis DepthAxis = LocalAxis.Y;
+    public LocalAxis ColumnAxis = LocalAxis.X;
+    public LocalAxis SliceAxis = LocalAxis.Z;
 
     // CPU-side copy of the currently loaded OCT volume (R channel, one byte per
     // voxel), kept around so a gradient/normal can be sampled without a GPU
@@ -97,6 +152,19 @@ public class SubretinalSequencePlayer : MonoBehaviour
     {
         WireButtons();
 
+        // ── Auto-link missing references ──
+        if (VolumeTransform == null)
+        {
+            var go = GameObject.Find("OCT_Volume");
+            if (go != null) VolumeTransform = go.transform;
+        }
+
+        if (EnfacePlane == null)
+        {
+            var go = GameObject.Find("EnfacePlane");
+            if (go != null) EnfacePlane = go.transform;
+        }
+
         if (string.IsNullOrEmpty(DataRootPath) || !Directory.Exists(DataRootPath))
             TryAutoDetectDataRoot();
 
@@ -120,7 +188,26 @@ public class SubretinalSequencePlayer : MonoBehaviour
         string projectRoot = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
         string candidate    = Path.Combine(projectRoot, DefaultDataFolderName);
         if (Directory.Exists(candidate))
+        {
             DataRootPath = candidate;
+            return;
+        }
+
+        // Auto-detect fallback paths commonly used on your machine
+        string[] fallbacks = {
+            @"D:\TUM Exchange",
+            @"d:\TUM Exchange",
+            @"C:\TUM Exchange",
+            @"c:\TUM Exchange"
+        };
+        foreach (var path in fallbacks)
+        {
+            if (Directory.Exists(path) && Directory.Exists(Path.Combine(path, "iOCT Microscope", "Volume")))
+            {
+                DataRootPath = path;
+                return;
+            }
+        }
     }
 
     void Update()
@@ -209,7 +296,7 @@ public class SubretinalSequencePlayer : MonoBehaviour
         Destroy(probe);
 
         byte[] volBytes     = new byte[w * h * depth];
-        int    yieldEvery   = Mathf.Max(1, depth / 16);
+        int    yieldEvery   = Mathf.Max(1, depth / 8);   // yield more often → UI stays responsive
 
         for (int i = 0; i < depth; i++)
         {
@@ -264,6 +351,16 @@ public class SubretinalSequencePlayer : MonoBehaviour
             if (_topViewTex == null) _topViewTex = new Texture2D(2, 2);
             _topViewTex.LoadImage(File.ReadAllBytes(topViewPath));
             TopViewDisplay.texture = _topViewTex;
+
+            // Apply texture to 3D enface plane
+            if (EnfacePlane != null)
+            {
+                var mr = EnfacePlane.GetComponent<MeshRenderer>();
+                if (mr != null && mr.material != null)
+                {
+                    mr.material.mainTexture = _topViewTex;
+                }
+            }
         }
 
         // ── 4. Numerical JSON ─────────────────────────────────────────────
@@ -281,6 +378,7 @@ public class SubretinalSequencePlayer : MonoBehaviour
         {
             PositionCrosshair(json);
             ParseSpatialFromJson(json);
+            ApplySceneAnchors();   // sync 3D volume + 2D plane to iOCT world position
         }
 
         // ── 5. UI sync ────────────────────────────────────────────────────
@@ -289,6 +387,37 @@ public class SubretinalSequencePlayer : MonoBehaviour
         SetStatus("");
 
         _loading = false;
+    }
+
+    // ── 3D/2D Scene Anchoring ─────────────────────────────────────────────────
+
+    /// <summary>
+    /// Position the 2D enface plane directly below the 3D volume cube,
+    /// keeping the 3D volume stationary in front of the camera.
+    /// </summary>
+    void ApplySceneAnchors()
+    {
+        if (VolumeTransform != null && EnfacePlane != null)
+        {
+            // Parent the EnfacePlane to the VolumeTransform so it rotates and moves with it
+            if (EnfacePlane.parent != VolumeTransform)
+            {
+                EnfacePlane.SetParent(VolumeTransform, false);
+                EnfacePlane.localScale = new Vector3(1.5f, 1.5f, 1f); // Scale plane so crosshair matches volume
+            }
+
+            // Convert crosshair center pixel coordinate [0, 2048] to local offset on the plane
+            // The plane local bounds are [-0.5, 0.5]
+            float u = OCTCrosshairCenter.x / TopViewImagePx;
+            float v = 1f - (OCTCrosshairCenter.y / TopViewImagePx); // Invert Y coordinate for Unity space
+
+            // Shift the plane so that the crosshair footprint is centered exactly under the volume cube
+            float localX = (u - 0.5f);
+            float localZ = (v - 0.5f);
+
+            EnfacePlane.localPosition = new Vector3(-localX, PlaneOffsetY, -localZ);
+            EnfacePlane.localRotation = Quaternion.Euler(90f, 0f, 0f);  // flat relative to volume
+        }
     }
 
     // ── Crosshair overlay (real-world anchor on the top view) ────────────────
@@ -324,6 +453,8 @@ public class SubretinalSequencePlayer : MonoBehaviour
         if (idx < 0) return null;
         var v = GetArrayFloats(json, idx);
         if (!float.TryParse(v[0], out float x) || !float.TryParse(v[1], out float y)) return null;
+        // Safeguard: Ensure points are finite to prevent NaN anchoredPosition errors in UI elements
+        if (float.IsNaN(x) || float.IsInfinity(x) || float.IsNaN(y) || float.IsInfinity(y)) return null;
         return new Vector2(x, y);
     }
 
@@ -354,6 +485,11 @@ public class SubretinalSequencePlayer : MonoBehaviour
     /// iOCT Microscope's own Translation/Rotation — the latter is the
     /// world&lt;-&gt;OCT-local transform used to map the needle tip into the
     /// loaded volume's voxel space.
+    ///
+    /// Also reads the 2D "Cannula SRI" keypoints (Tip + Start in 2048×2048 pixel
+    /// space) and computes InjectionAngleDeg = atan2(|dx|,|dy|) — angle from
+    /// vertical. This works reliably on every single frame without needing
+    /// multi-frame trajectory tracking.
     /// </summary>
     void ParseSpatialFromJson(string json)
     {
@@ -396,7 +532,137 @@ public class SubretinalSequencePlayer : MonoBehaviour
                 if (rotIdx >= 0) IOCTRotation = GetQuaternionAt(json, rotIdx);
             }
         }
+
+        // ── 2D Cannula SRI keypoints → injection angle ────────────────────
+        // "Cannula SRI" → "Tip"   = needle tip position in 2048×2048 image px
+        // "Cannula SRI" → "Start" = entry point at eye surface in image px
+        // The vector Start→Tip = needle direction in 2D image space.
+        // Angle from vertical = atan2(|dx|, |dy|) in degrees.
+        int sriIdx = json.IndexOf("\"Cannula SRI\"", StringComparison.Ordinal);
+        if (sriIdx >= 0)
+        {
+            int tipIdx   = json.IndexOf("\"Tip\"",   sriIdx, StringComparison.Ordinal);
+            int startIdx = json.IndexOf("\"Start\"", sriIdx, StringComparison.Ordinal);
+
+            if (tipIdx >= 0)
+            {
+                float[] tv = GetArrayFloatsN(json, tipIdx, 2);
+                CannulaTip2D = new Vector2(tv[0], tv[1]);
+            }
+
+            if (startIdx >= 0)
+            {
+                float[] sv = GetArrayFloatsN(json, startIdx, 2);
+                CannulaStart2D = new Vector2(sv[0], sv[1]);
+
+                // Compute angle only when both points are valid
+                if (tipIdx >= 0)
+                {
+                    float dx = CannulaTip2D.x - CannulaStart2D.x;
+                    float dy = CannulaTip2D.y - CannulaStart2D.y;
+                    // atan2(|dx|, |dy|) = angle from vertical axis (0° = straight down)
+                    InjectionAngleDeg = Mathf.Atan2(Mathf.Abs(dx), Mathf.Abs(dy)) * Mathf.Rad2Deg;
+                }
+            }
+            else
+            {
+                // Start is null → cannula out of frame
+                InjectionAngleDeg = -1f;
+            }
+        }
+
+        // ── Parse OCT Crosshair Center (for 3D/2D alignment) ──────────────
+        int chIdx = json.IndexOf("\"OCT Crosshair\"", StringComparison.Ordinal);
+        if (chIdx >= 0)
+        {
+            Vector2? s0 = GetNamedPoint(json, "Start 0", chIdx);
+            Vector2? e0 = GetNamedPoint(json, "End 0",   chIdx);
+            if (s0.HasValue && e0.HasValue)
+            {
+                OCTCrosshairCenter = (s0.Value + e0.Value) * 0.5f;
+            }
+        }
+
+        // ── Parse ILM Distance as float ──────────────────────────────────
+        string ilmStr = GetFloat(json, "ILM Distance");
+        if (float.TryParse(ilmStr, out float val) && !float.IsNaN(val) && !float.IsInfinity(val))
+        {
+            // Safeguard: If distance is float.MaxValue sentinel (3.4e38), treat as inside retina (-1f)
+            ILMDistanceMM = val > 100f ? -1f : val;
+        }
+        else
+        {
+            ILMDistanceMM = -1f;
+        }
+
+        // ── Parse RPE Distance as float ──────────────────────────────────
+        string rpeStr = GetFloat(json, "RPE Distance");
+        if (float.TryParse(rpeStr, out float rpeVal) && !float.IsNaN(rpeVal) && !float.IsInfinity(rpeVal))
+        {
+            // Safeguard: If distance is float.MaxValue sentinel, treat as inside retina (-1f)
+            RPEDistanceMM = rpeVal > 100f ? -1f : rpeVal;
+        }
+        else
+        {
+            RPEDistanceMM = -1f;
+        }
+
+        // Apply manual demo override if active
+        if (OverrideAngle)
+        {
+            InjectionAngleDeg = DemoAngleDeg;
+        }
+
+        // Compute local tip coordinates mapped to volume cube
+        ComputeLocalTipPosition();
     }
+
+    void ComputeLocalTipPosition()
+    {
+        if (CannulaTipWorld == Vector3.zero)
+        {
+            CannulaTipLocal = Vector3.zero;
+            return;
+        }
+
+        // Safeguard: Ensure IOCTRotation is a valid normalized quaternion
+        Quaternion rot = IOCTRotation;
+        float magSq = rot.x * rot.x + rot.y * rot.y + rot.z * rot.z + rot.w * rot.w;
+        if (Mathf.Abs(magSq - 1.0f) > 0.1f)
+        {
+            rot = Quaternion.identity;
+        }
+
+        // Map world coordinate to iOCT-local millimeters
+        Vector3 localMM = Quaternion.Inverse(rot) * (CannulaTipWorld - IOCTOrigin);
+
+        float depthVal = -Component(localMM, DepthAxis); // depth increases as we go lower (more negative Y)
+        float colVal   = Component(localMM, ColumnAxis);
+        float sliceVal = Component(localMM, SliceAxis);
+
+        CannulaTipDepthMM = depthVal;
+
+        // Prevent division by zero if dimensions are 0 in Inspector
+        float latExtent = LateralExtentMM > 0.01f ? LateralExtentMM : 30f;
+        float depExtent = DepthExtentMM > 0.01f ? DepthExtentMM : 40f;
+
+        // Normalize to [0, 1] range based on physical volume dimensions
+        float u = Mathf.Clamp01((colVal   + latExtent * 0.5f) / latExtent);
+        float v = Mathf.Clamp01(depthVal  / depExtent);
+        float s = Mathf.Clamp01((sliceVal + latExtent * 0.5f) / latExtent);
+
+        // Map to [-0.5, 0.5] local bounds of the volume cube
+        // Invert Y: v = 0 (top of volume/scanner) -> localY = 0.5, v = 1 (bottom of volume/RPE) -> localY = -0.5
+        CannulaTipLocal = new Vector3(u - 0.5f, 0.5f - v, s - 0.5f);
+    }
+
+    static float Component(Vector3 v, LocalAxis axis)
+    {
+        if (axis == LocalAxis.X) return v.x;
+        if (axis == LocalAxis.Y) return v.y;
+        return v.z;
+    }
+
 
     static Vector3 GetVector3At(string json, int fromIndex)
     {

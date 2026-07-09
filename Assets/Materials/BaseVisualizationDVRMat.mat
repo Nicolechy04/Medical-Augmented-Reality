@@ -42,7 +42,7 @@ Material:
     - BP_s2: 5
     - BlinnPhongTextureX: 512
     - BlinnPhongTextureY: 512
-    - BlinnPhongTextureZ: 128
+    - BlinnPhongTextureZ: 64
     - ClippingPlanes: 0
     - FeatureAlphaCurve: 2
     - FeatureAlphaMultiplier: 50
