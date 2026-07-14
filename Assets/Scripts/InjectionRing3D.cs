@@ -262,6 +262,7 @@ public class InjectionRing3D : MonoBehaviour
 
         // Calculate safety color coding (Angle vs Depth)
         Color angleColor = AngleToColor(angle); // Always Green/Yellow/Red based on tilt angle
+        Color depthColor = DepthToColor(Player.CannulaTipDepthMM, Player.ILMDistanceMM, angleColor); // Cyan/Red based on target depth
 
         // ── Hide Needle-Tip Overlays to prevent blocking surgeon's view ────────
         if (_ringRenderer != null) _ringRenderer.gameObject.SetActive(false);
