@@ -11,7 +11,8 @@ Material:
   m_Shader: {fileID: 4800000, guid: d506d04f25c88f34da656f7c125889d0, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
-  m_ValidKeywords: []
+  m_ValidKeywords:
+  - SHOW_FEATURE_VOLUME
   m_InvalidKeywords: []
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
@@ -33,7 +34,7 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - AlphaMultiplier: 80
+    - AlphaMultiplier: 20
     - BP_k_a: 0.3
     - BP_k_d: 0.6
     - BP_k_s: 0.2
@@ -57,7 +58,7 @@ Material:
     - FeatureTexResY: 64
     - FeatureTexResZ: 64
     - GradientSmoothKernelSize: 5
-    - IsoValue: 0.05
+    - IsoValue: 0.25
     - NumberOfCuttingPlanes: 0
     - SHOW_FEATURE_VOLUME: 0
     - STOCHASTIC_JITTER: 0

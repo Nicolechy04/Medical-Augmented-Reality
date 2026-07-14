@@ -26,6 +26,14 @@ public class InjectionRing3D : MonoBehaviour
     [Range(0.002f, 0.05f)] public float NeedleThickness = 0.015f;
     [Range(0.1f, 1.0f)] public float WedgeRadius = 0.3f;
 
+    [Header("Outer Compass Ring Options")]
+    [Tooltip("Radius of the outer compass ring around the 3D volume cube.")]
+    public float OuterRingRadius = 0.8f;
+    [Tooltip("Target approach yaw angle in degrees (e.g. -45 is top-left).")]
+    public float TargetYawAngle = -45f;
+    [Tooltip("Radius/size of the direction marker spheres.")]
+    public float MarkerSize = 0.05f;
+
     [Header("Colors")]
     public Color SafeColor    = new Color(0.10f, 0.90f, 0.20f, 0.6f);   // glowing green
     public Color CautionColor = new Color(1.00f, 0.78f, 0.00f, 0.6f);   // glowing amber
@@ -51,6 +59,15 @@ public class InjectionRing3D : MonoBehaviour
     private MeshFilter   _wedgeMeshFilter;
     private Mesh         _wedgeMesh;
 
+    // Outer compass components
+    private GameObject   _compassRingParent;
+    private LineRenderer _outerRingLine;
+    private GameObject   _currentMarker;
+    private GameObject   _targetMarker;
+    private Material     _outerRingMat;
+    private Material     _currentMarkerMat;
+    private Material     _targetMarkerMat;
+
     // Sonar & Tether visualizers
     private Transform    _sonarVisual;
     private Material     _sonarMat;
@@ -68,7 +85,7 @@ public class InjectionRing3D : MonoBehaviour
 
         if (Player == null) Player = FindObjectOfType<SubretinalSequencePlayer>();
 
-        // 1. The Safety Target Ring
+        // 1. The Safety Target Ring (at needle tip - we will disable it in Update)
         GameObject cylinder = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
         cylinder.name = "SafetyRingVisual";
         cylinder.transform.SetParent(RingRoot, false);
@@ -90,7 +107,7 @@ public class InjectionRing3D : MonoBehaviour
         pointerCyl.transform.localScale = new Vector3(NeedleThickness * 2f, NeedleLength * 0.5f, NeedleThickness * 2f);
         MeshRenderer needleRenderer = pointerCyl.GetComponent<MeshRenderer>();
 
-        // 3. The Holographic Wedge
+        // 3. The Holographic Wedge (at needle tip)
         _wedgeGO = new GameObject("HolographicAngleWedge");
         _wedgeGO.transform.SetParent(RingRoot, false);
         _wedgeMeshFilter = _wedgeGO.AddComponent<MeshFilter>();
@@ -106,7 +123,7 @@ public class InjectionRing3D : MonoBehaviour
         _sonarVisual = sonarGO.transform;
         MeshRenderer sonarRenderer = sonarGO.GetComponent<MeshRenderer>();
 
-        // 5. Depth Tether Landing Guide (thin vertical column stretching down to retina)
+        // 5. Depth Tether Landing Guide
         GameObject tetherGO = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
         tetherGO.name = "DepthTetherVisual";
         tetherGO.transform.SetParent(RingRoot, false);
@@ -114,7 +131,40 @@ public class InjectionRing3D : MonoBehaviour
         _tetherVisual = tetherGO.transform;
         MeshRenderer tetherRenderer = tetherGO.GetComponent<MeshRenderer>();
 
-        // Setup transparent overlay materials using GUI/Text Shader (ignores depth testing, renders on top)
+        // 6. Outer Compass Ring & Target Guides (around the 3D volume cube)
+        _compassRingParent = new GameObject("OuterCompassRingParent");
+        
+        GameObject lineGO = new GameObject("OuterRingLine");
+        lineGO.transform.SetParent(_compassRingParent.transform, false);
+        _outerRingLine = lineGO.AddComponent<LineRenderer>();
+        _outerRingLine.useWorldSpace = false;
+        _outerRingLine.startWidth = 0.015f;
+        _outerRingLine.endWidth = 0.015f;
+        _outerRingLine.positionCount = 37;
+        
+        Vector3[] circlePoints = new Vector3[37];
+        for (int i = 0; i <= 36; i++)
+        {
+            float rad = i * 10f * Mathf.Deg2Rad;
+            circlePoints[i] = new Vector3(Mathf.Sin(rad) * OuterRingRadius, 0f, Mathf.Cos(rad) * OuterRingRadius);
+        }
+        _outerRingLine.SetPositions(circlePoints);
+
+        // Target Direction Guide (Green Sphere - represents optimal alignment angle)
+        _targetMarker = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        _targetMarker.name = "TargetDirectionMarker";
+        _targetMarker.transform.SetParent(_compassRingParent.transform, false);
+        Destroy(_targetMarker.GetComponent<Collider>());
+        _targetMarker.transform.localScale = Vector3.one * MarkerSize * 1.5f;
+
+        // Current Direction Guide (White Sphere - represents actual needle angle)
+        _currentMarker = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        _currentMarker.name = "CurrentDirectionMarker";
+        _currentMarker.transform.SetParent(_compassRingParent.transform, false);
+        Destroy(_currentMarker.GetComponent<Collider>());
+        _currentMarker.transform.localScale = Vector3.one * MarkerSize;
+
+        // Setup materials (unlit depth-ignoring overlay shaders)
         _ringMat = new Material(Shader.Find("GUI/Text Shader"));
         _ringMat.renderQueue = 4000;
 
@@ -132,11 +182,30 @@ public class InjectionRing3D : MonoBehaviour
         _tetherMat.color = TetherColor;
         _tetherMat.renderQueue = 4000;
 
+        _outerRingMat = new Material(Shader.Find("GUI/Text Shader"));
+        _outerRingMat.renderQueue = 4000;
+
+        _targetMarkerMat = new Material(Shader.Find("GUI/Text Shader"));
+        _targetMarkerMat.color = SafeColor;
+        _targetMarkerMat.renderQueue = 4000;
+
+        _currentMarkerMat = new Material(Shader.Find("GUI/Text Shader"));
+        _currentMarkerMat.color = Color.white;
+        _currentMarkerMat.renderQueue = 4000;
+
         _ringRenderer.material = _ringMat;
         needleRenderer.material = _needleMat;
         wedgeRenderer.material = _wedgeMat;
         sonarRenderer.material = _sonarMat;
         tetherRenderer.material = _tetherMat;
+        
+        _outerRingLine.material = _outerRingMat;
+        _targetMarker.GetComponent<MeshRenderer>().material = _targetMarkerMat;
+        _currentMarker.GetComponent<MeshRenderer>().material = _currentMarkerMat;
+
+        // Position the target marker at the target yaw angle (e.g. -45 degrees)
+        float targetRad = TargetYawAngle * Mathf.Deg2Rad;
+        _targetMarker.transform.localPosition = new Vector3(Mathf.Sin(targetRad) * OuterRingRadius, 0f, Mathf.Cos(targetRad) * OuterRingRadius);
 
         RingRoot.gameObject.SetActive(false);
     }
@@ -149,8 +218,10 @@ public class InjectionRing3D : MonoBehaviour
         if (Player.CannulaTipWorld == Vector3.zero)
         {
             RingRoot.gameObject.SetActive(false);
+            if (_compassRingParent != null) _compassRingParent.SetActive(false);
             return;
         }
+        
         RingRoot.gameObject.SetActive(true);
 
         // Parent to volume for coordinate space synchronization
@@ -175,7 +246,7 @@ public class InjectionRing3D : MonoBehaviour
         if (float.IsNaN(yawAngle) || float.IsInfinity(yawAngle)) yawAngle = 0f;
         if (float.IsNaN(angle) || float.IsInfinity(angle)) angle = 0f;
 
-        // Update Needle Shaft Rotation (Yaw and Pitch/Tilt)
+        // Update Needle Shaft Rotation (Yaw and Pitch/Tilt) so the silver needle matches actual tracking
         if (_needlePointer != null)
         {
             if (angle >= 0f)
@@ -189,77 +260,70 @@ public class InjectionRing3D : MonoBehaviour
             }
         }
 
-        // Apply separated safety color coding (Angle vs Depth)
+        // Calculate safety color coding (Angle vs Depth)
         Color angleColor = AngleToColor(angle); // Always Green/Yellow/Red based on tilt angle
-        Color depthColor = DepthToColor(Player.CannulaTipDepthMM, Player.ILMDistanceMM, angleColor); // Cyan/Red based on target depth
 
-        if (_ringMat != null) _ringMat.color = depthColor; // Target Ring represents Depth safety
-        if (_wedgeMat != null) _wedgeMat.color = angleColor; // Holographic Wedge represents Angle safety
+        // ── Hide Needle-Tip Overlays to prevent blocking surgeon's view ────────
+        if (_ringRenderer != null) _ringRenderer.gameObject.SetActive(false);
+        if (_wedgeGO != null) _wedgeGO.SetActive(false);
+        if (_sonarVisual != null) _sonarVisual.gameObject.SetActive(false);
+        if (_tetherVisual != null) _tetherVisual.gameObject.SetActive(false);
 
-        // ── Holographic wedge ─────────────────────────────────────────────────
-        // Only generate wedge when angle > 0.5f degrees. If angle is 0, mesh vertices collapse
-        // to a single line, generating NaN normals in RecalculateNormals() that break the renderer.
-        if (angle > 0.5f && _wedgeMesh != null)
+        // ── Render Outer Compass HUD (around the 3D volume cube) ───────────────
+        if (_compassRingParent != null)
         {
-            _wedgeGO.SetActive(true);
-            GenerateWedgeMesh(angle, yawAngle);
-        }
-        else if (_wedgeGO != null)
-        {
-            _wedgeGO.SetActive(false);
-        }
-
-        // ── Sonar Radar Pulse ─────────────────────────────────────────────────
-        if (_sonarVisual != null && _sonarMat != null)
-        {
-            float dist = Player.ILMDistanceMM;
-            if (float.IsNaN(dist) || float.IsInfinity(dist) || dist < 0f) dist = 20f; // safety fallback
-
-            // Pulse frequency increases as distance decreases (from 1Hz when far to 8Hz when touching)
-            float pulseSpeed = Mathf.Lerp(8f, 1f, Mathf.Clamp01(dist / 20f));
-            float pulseTime = (Time.time * pulseSpeed) % 1.0f;
-
-            // Sonar ring expands outwards and fades out
-            float scale = RingRadius * (1.0f + pulseTime * 1.5f);
-            _sonarVisual.localScale = new Vector3(scale * 2f, RingThickness * 0.4f, scale * 2f);
-            
-            Color sonarColor = depthColor;
-            sonarColor.a = (1.0f - pulseTime) * 0.4f; // fade out transparency
-            _sonarMat.color = sonarColor;
-        }
-
-        // ── Depth Tether Landing Guide ────────────────────────────────────────
-        if (_tetherVisual != null)
-        {
-            float dist = Player.ILMDistanceMM;
-            if (float.IsNaN(dist) || float.IsInfinity(dist)) dist = -1f; // safety fallback
-            
-            // Render tether only when above the retina (positive distance)
-            if (dist > 0.05f)
+            if (Player.VolumeTransform != null)
             {
-                _tetherVisual.gameObject.SetActive(true);
-
-                // Prevent division by zero if DepthExtentMM is not initialized
-                float depthExtent = Player.DepthExtentMM > 0.01f ? Player.DepthExtentMM : 40f;
-
-                // Calculate tether bounds in local volume Y coordinates
-                float tetherTopY = RingRoot.localPosition.y; // visual tip (clamped to 0.5f if high above)
-
-                // ILM surface local Y based on physical needle depth and distance to retina
-                float realNeedleDepth = Player.CannulaTipDepthMM;
-                float ilmLocalY = 0.5f - (realNeedleDepth + dist) / depthExtent;
-
-                // The vertical length of the tether in local units
-                float tetherLengthLocal = Mathf.Max(0f, tetherTopY - ilmLocalY);
-
-                // Position tether cylinder so its center is halfway between visual tip and ILM surface
-                _tetherVisual.localPosition = new Vector3(0f, -tetherLengthLocal * 0.5f, 0f);
-                // Make the tether thickness 0.012f (4x thicker than before) so it is clearly visible
-                _tetherVisual.localScale = new Vector3(0.012f, tetherLengthLocal * 0.5f, 0.012f);
+                if (_compassRingParent.transform.parent != Player.VolumeTransform)
+                {
+                    _compassRingParent.transform.SetParent(Player.VolumeTransform, false);
+                }
+                _compassRingParent.transform.localPosition = Vector3.zero;
+                _compassRingParent.transform.localRotation = Quaternion.identity;
+                _compassRingParent.transform.localScale = Vector3.one;
+                _compassRingParent.SetActive(true);
             }
             else
             {
-                _tetherVisual.gameObject.SetActive(false); // hide when touched down
+                _compassRingParent.SetActive(false);
+            }
+        }
+
+        // Redraw/update outer circle points in case radius is adjusted at runtime
+        if (_outerRingLine != null)
+        {
+            Vector3[] circlePoints = new Vector3[37];
+            for (int i = 0; i <= 36; i++)
+            {
+                float rad = i * 10f * Mathf.Deg2Rad;
+                circlePoints[i] = new Vector3(Mathf.Sin(rad) * OuterRingRadius, 0f, Mathf.Cos(rad) * OuterRingRadius);
+            }
+            _outerRingLine.SetPositions(circlePoints);
+            if (_outerRingMat != null) _outerRingMat.color = angleColor;
+        }
+
+        // Update target marker position (optimal yaw direction)
+        if (_targetMarker != null)
+        {
+            float targetRad = TargetYawAngle * Mathf.Deg2Rad;
+            _targetMarker.transform.localPosition = new Vector3(Mathf.Sin(targetRad) * OuterRingRadius, 0f, Mathf.Cos(targetRad) * OuterRingRadius);
+            _targetMarker.transform.localScale = Vector3.one * MarkerSize * 1.5f;
+            if (_targetMarkerMat != null) _targetMarkerMat.color = SafeColor;
+        }
+
+        // Update current marker position (actual yaw direction pointer)
+        if (_currentMarker != null)
+        {
+            if (angle >= 0f)
+            {
+                float currentRad = (yawAngle + 180f) * Mathf.Deg2Rad;
+                _currentMarker.transform.localPosition = new Vector3(Mathf.Sin(currentRad) * OuterRingRadius, 0f, Mathf.Cos(currentRad) * OuterRingRadius);
+                _currentMarker.transform.localScale = Vector3.one * MarkerSize;
+                _currentMarker.SetActive(true);
+            }
+            else
+            {
+                _currentMarker.SetActive(false);
             }
         }
     }
