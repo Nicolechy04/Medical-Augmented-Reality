@@ -299,7 +299,7 @@ public class InjectionRing3D : MonoBehaviour
                 circlePoints[i] = new Vector3(Mathf.Sin(rad) * OuterRingRadius, 0f, Mathf.Cos(rad) * OuterRingRadius);
             }
             _outerRingLine.SetPositions(circlePoints);
-            if (_outerRingMat != null) _outerRingMat.color = angleColor;
+            if (_outerRingMat != null) _outerRingMat.color = depthColor;
         }
 
         // Update target marker position (optimal yaw direction)
