@@ -22,7 +22,7 @@ public class InjectionRing3D : MonoBehaviour
     [Header("HUD Dimensions")]
     [Range(0.02f, 0.5f)] public float RingRadius = 0.12f;
     [Range(0.001f, 0.1f)] public float RingThickness = 0.015f;
-    [Range(0.2f, 2.0f)] public float NeedleLength = 1.0f;
+    [Range(0.2f, 2.0f)] public float NeedleLength = 0.35f;
     [Range(0.002f, 0.05f)] public float NeedleThickness = 0.015f;
     [Range(0.1f, 1.0f)] public float WedgeRadius = 0.3f;
 
