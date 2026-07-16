@@ -75,6 +75,10 @@ public class InjectionRing3D : MonoBehaviour
     private Transform    _tetherVisual;
     private Material     _tetherMat;
 
+    // Angle smoothing for noise reduction
+    private float        _smoothedAngle = -1f;
+    private float        _smoothedYaw = 0f;
+
     void Start()
     {
         if (RingRoot == null)
@@ -246,23 +250,44 @@ public class InjectionRing3D : MonoBehaviour
         if (float.IsNaN(yawAngle) || float.IsInfinity(yawAngle)) yawAngle = 0f;
         if (float.IsNaN(angle) || float.IsInfinity(angle)) angle = 0f;
 
-        // Update Needle Shaft Rotation (Yaw and Pitch/Tilt) so the silver needle matches actual tracking
-        if (_needlePointer != null)
+        // Smooth angle and yaw to eliminate high-frequency tracker jitter/wobble
+        if (angle >= 0f)
         {
-            if (angle >= 0f)
+            if (_smoothedAngle < 0f) // initialize first frame
             {
-                // Rotate by yawAngle + 180 degrees so the virtual shaft extends backwards/outwards from the eye
-                _needlePointer.localRotation = Quaternion.Euler(0f, yawAngle + 180f, 0f) * Quaternion.Euler(angle, 0f, 0f);
+                _smoothedAngle = angle;
+                _smoothedYaw = yawAngle;
             }
             else
             {
-                _needlePointer.localRotation = Quaternion.identity;
+                // Smooth by Lerping (EMA low-pass filter)
+                _smoothedAngle = Mathf.LerpAngle(_smoothedAngle, angle, Time.deltaTime * 5f);
+                _smoothedYaw = Mathf.LerpAngle(_smoothedYaw, yawAngle, Time.deltaTime * 5f);
+            }
+        }
+        else
+        {
+            _smoothedAngle = -1f;
+        }
+
+        // Update Needle Shaft Rotation (Yaw and Pitch/Tilt) so the silver needle matches actual tracking.
+        // We use world rotation (rotation) instead of localRotation to keep it aligned with the screen/world space
+        // regardless of the 3D volume cube's rotation.
+        if (_needlePointer != null)
+        {
+            if (_smoothedAngle >= 0f)
+            {
+                _needlePointer.rotation = Quaternion.Euler(0f, _smoothedYaw + 180f, 0f) * Quaternion.Euler(_smoothedAngle, 0f, 0f);
+            }
+            else
+            {
+                _needlePointer.rotation = Quaternion.identity;
             }
         }
 
-        // Calculate safety color coding (Angle vs Depth)
-        Color angleColor = AngleToColor(angle); // Always Green/Yellow/Red based on tilt angle
-        Color depthColor = DepthToColor(Player.CannulaTipDepthMM, Player.ILMDistanceMM, angleColor); // Cyan/Red based on target depth
+        // Calculate safety color coding (Angle vs Depth) using smoothed values
+        Color angleColor = AngleToColor(_smoothedAngle); 
+        Color depthColor = DepthToColor(Player.CannulaTipDepthMM, Player.ILMDistanceMM, angleColor); 
 
         // ── Hide Needle-Tip Overlays to prevent blocking surgeon's view ────────
         if (_ringRenderer != null) _ringRenderer.gameObject.SetActive(false);
@@ -280,7 +305,10 @@ public class InjectionRing3D : MonoBehaviour
                     _compassRingParent.transform.SetParent(Player.VolumeTransform, false);
                 }
                 _compassRingParent.transform.localPosition = Vector3.zero;
-                _compassRingParent.transform.localRotation = Quaternion.identity;
+                
+                // Lock world rotation to screen/world space identity so it doesn't spin when the volume is rotated
+                _compassRingParent.transform.rotation = Quaternion.identity;
+                
                 _compassRingParent.transform.localScale = Vector3.one;
                 _compassRingParent.SetActive(true);
             }
@@ -312,12 +340,12 @@ public class InjectionRing3D : MonoBehaviour
             if (_targetMarkerMat != null) _targetMarkerMat.color = SafeColor;
         }
 
-        // Update current marker position (actual yaw direction pointer)
+        // Update current marker position (actual yaw direction pointer) using smoothed yaw
         if (_currentMarker != null)
         {
-            if (angle >= 0f)
+            if (_smoothedAngle >= 0f)
             {
-                float currentRad = (yawAngle + 180f) * Mathf.Deg2Rad;
+                float currentRad = (_smoothedYaw + 180f) * Mathf.Deg2Rad;
                 _currentMarker.transform.localPosition = new Vector3(Mathf.Sin(currentRad) * OuterRingRadius, 0f, Mathf.Cos(currentRad) * OuterRingRadius);
                 _currentMarker.transform.localScale = Vector3.one * MarkerSize;
                 _currentMarker.SetActive(true);
