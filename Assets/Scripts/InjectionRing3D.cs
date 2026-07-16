@@ -27,8 +27,8 @@ public class InjectionRing3D : MonoBehaviour
     [Range(0.1f, 1.0f)] public float WedgeRadius = 0.3f;
 
     [Header("Outer Compass Ring Options")]
-    [Tooltip("Radius of the outer compass ring around the 3D volume cube.")]
-    public float OuterRingRadius = 0.8f;
+    [Tooltip("Radius of the compass ring centered around the needle tip.")]
+    public float OuterRingRadius = 0.25f;
     [Tooltip("Target approach yaw angle in degrees (e.g. -45 is top-left).")]
     public float TargetYawAngle = -45f;
     [Tooltip("Radius/size of the direction marker spheres.")]
@@ -295,34 +295,27 @@ public class InjectionRing3D : MonoBehaviour
         if (_sonarVisual != null) _sonarVisual.gameObject.SetActive(false);
         if (_tetherVisual != null) _tetherVisual.gameObject.SetActive(false);
 
-        // ── Render Outer Compass HUD (around the 3D volume cube) ───────────────
+        // ── Render Compass HUD (centered at the needle tip) ────────────────────
         if (_compassRingParent != null)
         {
-            if (Player.VolumeTransform != null)
+            if (_compassRingParent.transform.parent != RingRoot)
             {
-                if (_compassRingParent.transform.parent != Player.VolumeTransform)
-                {
-                    _compassRingParent.transform.SetParent(Player.VolumeTransform, false);
-                }
-                _compassRingParent.transform.localPosition = Vector3.zero;
-                
-                // Lock rotation to match the EnfacePlane so it stays aligned with the microscope camera coordinate axes
-                if (Player.EnfacePlane != null)
-                {
-                    _compassRingParent.transform.rotation = Player.EnfacePlane.rotation;
-                }
-                else
-                {
-                    _compassRingParent.transform.rotation = Quaternion.identity;
-                }
-                
-                _compassRingParent.transform.localScale = Vector3.one;
-                _compassRingParent.SetActive(true);
+                _compassRingParent.transform.SetParent(RingRoot, false);
+            }
+            _compassRingParent.transform.localPosition = Vector3.zero;
+            
+            // Lock rotation to match the EnfacePlane so it stays aligned with the microscope camera coordinate axes
+            if (Player.EnfacePlane != null)
+            {
+                _compassRingParent.transform.rotation = Player.EnfacePlane.rotation;
             }
             else
             {
-                _compassRingParent.SetActive(false);
+                _compassRingParent.transform.rotation = Quaternion.identity;
             }
+            
+            _compassRingParent.transform.localScale = Vector3.one;
+            _compassRingParent.SetActive(true);
         }
 
         // Redraw/update outer circle points in case radius is adjusted at runtime
