@@ -82,6 +82,9 @@ public class InjectionRing3D : MonoBehaviour
 
     void Start()
     {
+        // Force the outer ring radius to 0.8f at runtime to override any stale Inspector settings
+        OuterRingRadius = 0.8f;
+
         if (RingRoot == null)
         {
             Debug.LogError("[InjectionRing3D] RingRoot is not assigned!");
