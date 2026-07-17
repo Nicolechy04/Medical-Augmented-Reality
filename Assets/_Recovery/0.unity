@@ -3252,9 +3252,10 @@ MonoBehaviour:
   Player: {fileID: 1792233415}
   RingRadius: 0.08
   RingThickness: 0.003
-  NeedleLength: 1
+  NeedleLength: 0.35
   NeedleThickness: 0.005
   WedgeRadius: 0.3
+  OuterRingRadius: 0.8
   SafeColor: {r: 0.1, g: 0.9, b: 0.2, a: 1}
   CautionColor: {r: 1, g: 0.78, b: 0, a: 1}
   DangerColor: {r: 0.95, g: 0.15, b: 0.15, a: 1}
