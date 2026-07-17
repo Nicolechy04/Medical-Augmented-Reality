@@ -239,12 +239,20 @@ public class InjectionRing3D : MonoBehaviour
         
         RingRoot.gameObject.SetActive(true);
 
-        // Move to cannula tip world position to prevent shearing/warping from Volume's non-uniform scaling
+        // Move to cannula tip position. We calculate the world position using Player.VolumeTransform.TransformPoint
+        // but keep RingRoot parented to null so it does not inherit the parent's non-uniform scaling (shearing).
         if (RingRoot.parent != null)
         {
             RingRoot.SetParent(null, false);
         }
-        RingRoot.position = Player.CannulaTipWorld;
+        if (Player.VolumeTransform != null)
+        {
+            RingRoot.position = Player.VolumeTransform.TransformPoint(Player.CannulaTipLocal);
+        }
+        else
+        {
+            RingRoot.position = Player.CannulaTipWorld;
+        }
         RingRoot.rotation = Quaternion.identity;
         RingRoot.localScale = Vector3.one;
 
