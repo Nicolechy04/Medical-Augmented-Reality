@@ -62,6 +62,7 @@ public class InjectionRing3D : MonoBehaviour
     // Outer compass components
     private GameObject   _compassRingParent;
     private LineRenderer _outerRingLine;
+    private LineRenderer _directionLine;
     private GameObject   _currentMarker;
     private GameObject   _targetMarker;
     private Material     _outerRingMat;
@@ -154,6 +155,15 @@ public class InjectionRing3D : MonoBehaviour
         }
         _outerRingLine.SetPositions(circlePoints);
 
+        // Direction Pointer Line (Clock Hand connecting center to the current direction dot)
+        GameObject dirLineGO = new GameObject("DirectionPointerLine");
+        dirLineGO.transform.SetParent(_compassRingParent.transform, false);
+        _directionLine = dirLineGO.AddComponent<LineRenderer>();
+        _directionLine.useWorldSpace = false;
+        _directionLine.startWidth = RingThickness * 0.5f;
+        _directionLine.endWidth = RingThickness * 0.5f;
+        _directionLine.positionCount = 2;
+
         // Target Direction Guide (Green Sphere - represents optimal alignment angle)
         _targetMarker = GameObject.CreatePrimitive(PrimitiveType.Sphere);
         _targetMarker.name = "TargetDirectionMarker";
@@ -204,6 +214,7 @@ public class InjectionRing3D : MonoBehaviour
         tetherRenderer.material = _tetherMat;
         
         _outerRingLine.material = _outerRingMat;
+        _directionLine.material = _outerRingMat;
         _targetMarker.GetComponent<MeshRenderer>().material = _targetMarkerMat;
         _currentMarker.GetComponent<MeshRenderer>().material = _currentMarkerMat;
 
@@ -228,16 +239,14 @@ public class InjectionRing3D : MonoBehaviour
         
         RingRoot.gameObject.SetActive(true);
 
-        // Parent to volume for coordinate space synchronization
-        if (Player.VolumeTransform != null && RingRoot.parent != Player.VolumeTransform)
+        // Move to cannula tip world position to prevent shearing/warping from Volume's non-uniform scaling
+        if (RingRoot.parent != null)
         {
-            RingRoot.SetParent(Player.VolumeTransform, false);
-            RingRoot.localScale = Vector3.one;
+            RingRoot.SetParent(null, false);
         }
-
-        // Move to cannula tip local position
-        RingRoot.localPosition = Player.CannulaTipLocal;
-        RingRoot.localRotation = Quaternion.identity;
+        RingRoot.position = Player.CannulaTipWorld;
+        RingRoot.rotation = Quaternion.identity;
+        RingRoot.localScale = Vector3.one;
 
         float angle = Player.InjectionAngleDeg;
         
@@ -295,34 +304,27 @@ public class InjectionRing3D : MonoBehaviour
         if (_sonarVisual != null) _sonarVisual.gameObject.SetActive(false);
         if (_tetherVisual != null) _tetherVisual.gameObject.SetActive(false);
 
-        // ── Render Outer Compass HUD (around the 3D volume cube) ───────────────
+        // ── Render Compass HUD (centered at the needle tip) ────────────────────
         if (_compassRingParent != null)
         {
-            if (Player.VolumeTransform != null)
+            if (_compassRingParent.transform.parent != RingRoot)
             {
-                if (_compassRingParent.transform.parent != Player.VolumeTransform)
-                {
-                    _compassRingParent.transform.SetParent(Player.VolumeTransform, false);
-                }
-                _compassRingParent.transform.localPosition = Vector3.zero;
-                
-                // Lock rotation to match the EnfacePlane so it stays aligned with the microscope camera coordinate axes
-                if (Player.EnfacePlane != null)
-                {
-                    _compassRingParent.transform.rotation = Player.EnfacePlane.rotation;
-                }
-                else
-                {
-                    _compassRingParent.transform.rotation = Quaternion.identity;
-                }
-                
-                _compassRingParent.transform.localScale = Vector3.one;
-                _compassRingParent.SetActive(true);
+                _compassRingParent.transform.SetParent(RingRoot, false);
+            }
+            _compassRingParent.transform.localPosition = Vector3.zero;
+            
+            // Lock rotation to match the EnfacePlane so it stays aligned with the microscope camera coordinate axes
+            if (Player.EnfacePlane != null)
+            {
+                _compassRingParent.transform.rotation = Player.EnfacePlane.rotation;
             }
             else
             {
-                _compassRingParent.SetActive(false);
+                _compassRingParent.transform.rotation = Quaternion.identity;
             }
+            
+            _compassRingParent.transform.localScale = Vector3.one;
+            _compassRingParent.SetActive(true);
         }
 
         // Redraw/update outer circle points in case radius is adjusted at runtime
@@ -360,6 +362,21 @@ public class InjectionRing3D : MonoBehaviour
             else
             {
                 _currentMarker.SetActive(false);
+            }
+        }
+
+        // Draw flat direction pointer line from center to current marker to solve perspective illusion
+        if (_directionLine != null)
+        {
+            if (_smoothedAngle >= 0f && _currentMarker != null)
+            {
+                _directionLine.SetPosition(0, Vector3.zero);
+                _directionLine.SetPosition(1, _currentMarker.transform.localPosition);
+                _directionLine.gameObject.SetActive(true);
+            }
+            else
+            {
+                _directionLine.gameObject.SetActive(false);
             }
         }
     }
