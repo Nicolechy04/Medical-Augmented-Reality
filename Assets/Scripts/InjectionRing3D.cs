@@ -291,13 +291,19 @@ public class InjectionRing3D : MonoBehaviour
         }
 
         // Update Needle Shaft Rotation (Yaw and Pitch/Tilt) so the silver needle matches actual tracking.
-        // We rotate relative to the EnfacePlane's rotation so that the 3D needle orientation matches 
-        // the 2D microscope camera view coordinates perfectly.
+        // We rotate relative to the VolumeTransform's rotation so that it rotates and aligns with the 3D box.
         if (_needlePointer != null)
         {
             if (_smoothedAngle >= 0f)
             {
-                _needlePointer.rotation = Player.EnfacePlane.rotation * Quaternion.Euler(0f, _smoothedYaw + 180f, 0f) * Quaternion.Euler(_smoothedAngle, 0f, 0f);
+                if (Player.VolumeTransform != null)
+                {
+                    _needlePointer.rotation = Player.VolumeTransform.rotation * Quaternion.Euler(0f, _smoothedYaw + 180f, 0f) * Quaternion.Euler(_smoothedAngle, 0f, 0f);
+                }
+                else
+                {
+                    _needlePointer.rotation = Quaternion.Euler(0f, _smoothedYaw + 180f, 0f) * Quaternion.Euler(_smoothedAngle, 0f, 0f);
+                }
             }
             else
             {
@@ -324,10 +330,10 @@ public class InjectionRing3D : MonoBehaviour
             }
             _compassRingParent.transform.localPosition = Vector3.zero;
             
-            // Lock rotation to match the EnfacePlane so it stays aligned with the microscope camera coordinate axes
-            if (Player.EnfacePlane != null)
+            // Lock rotation to match the VolumeTransform so it rotates and aligns with the 3D box
+            if (Player.VolumeTransform != null)
             {
-                _compassRingParent.transform.rotation = Player.EnfacePlane.rotation;
+                _compassRingParent.transform.rotation = Player.VolumeTransform.rotation;
             }
             else
             {
