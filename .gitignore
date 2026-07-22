@@ -11,4 +11,36 @@
 *.sln
 *.suo
 *.user
+
+# Python
+**/__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+*.egg-info/
+.venv/
+venv/
+env/
+.ipynb_checkpoints/
+
+# Generated sonification outputs
+sonification/runs/
+sonification/inference/
+sonification/sync_logs/
+sonification/sonify_core/sync_logs/
+sonification/oct_debug_overlays/
+
+# Generated sonification media
+sonification/**/*.wav
+sonification/**/*.mp4
+sonification/**/*.avi
+sonification/**/*.mov
+sonification/**/video_timing.json
+
+# Local datasets
+sonification/data/
+
+# Operating-system files
 .DS_Store
+Thumbs.db
