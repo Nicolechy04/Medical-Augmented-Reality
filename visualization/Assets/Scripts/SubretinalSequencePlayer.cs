@@ -114,11 +114,18 @@ public class SubretinalSequencePlayer : MonoBehaviour
     public Button NextButton;
     public Button PlayPauseButton;
 
+    [Header("Live Sync (Python sonification)")]
+    [Tooltip("Auto-found via FindObjectOfType if left empty. Once it has received at " +
+             "least one /ioct/state_json message, its frame_index drives playback " +
+             "instead of the manual slider/auto-play — Python becomes the clock.")]
+    public IOCTOscReceiver OscReceiver;
+
     // ── Public state ──────────────────────────────────────────────────────────
     public int  TotalFrames  => _frameDirs != null ? _frameDirs.Length : 0;
     public int  CurrentFrame => _currentFrame;
     public bool IsLoading    => _loading;
     public bool IsPlaying    => _playing;
+    public bool IsLiveSyncActive => OscReceiver != null && OscReceiver.hasState;
 
     // ── 3D spatial data (for injection angle sync) ──────────────────────────────
     // the iOCT Microscope transform maps world <-> OCT-local space directly,
@@ -176,6 +183,15 @@ public class SubretinalSequencePlayer : MonoBehaviour
     // frame gets compared against this one to figure out tissue tension
     private byte[]    _referenceVolume;
 
+    // CPU-side copy of the current frame's segmentation labels, same layout as VolumeBytes.
+    // Used to mask the needle out of the tension diff — see LoadSegmentationFeatureVolume.
+    private byte[]    _currentSegBytes;
+
+    // Cannula depth from the previous frame, used to tell whether the needle is advancing
+    // or retracting so tension smoothing (TensionController.ApplyDirectionalSmoothing) knows
+    // which way to move. Null until we've seen one valid depth reading.
+    private float?    _lastTensionDepthMM;
+
     private string[]  _frameDirs;
     private int       _currentFrame;
     private bool      _loading;
@@ -216,6 +232,8 @@ public class SubretinalSequencePlayer : MonoBehaviour
     {
         Debug.LogWarning($"[SubretinalPlayer] Start called. DataRootPath: '{DataRootPath}'. Directory exists: {Directory.Exists(DataRootPath)}");
         WireButtons();
+
+        if (OscReceiver == null) OscReceiver = FindObjectOfType<IOCTOscReceiver>();
 
         if (VolumeMaterial != null)
         {
@@ -278,12 +296,38 @@ public class SubretinalSequencePlayer : MonoBehaviour
         // dragging OCT_Volume around with RotateVolume drags StereoLeftPlane too
         SyncPlaneToVolume();
 
-        if (!_playing || _loading || TotalFrames == 0) return;
+        // Once Python's sonification clock starts driving us (see LateUpdate), stop
+        // advancing on our own so the two frame sources don't fight each other.
+        if (!_playing || _loading || TotalFrames == 0 || IsLiveSyncActive) return;
         _playTimer += Time.deltaTime;
         if (_playTimer >= 1f / PlayFPS)
         {
             _playTimer = 0f;
             StartCoroutine(LoadFrame((_currentFrame + 1) % TotalFrames));
+        }
+    }
+
+    // LateUpdate (not Update) so this always runs after IOCTOscReceiver.Update(),
+    // regardless of Unity's per-frame script execution order — hasNewState is only
+    // meaningful for the remainder of the frame it was set in.
+    void LateUpdate()
+    {
+        if (OscReceiver == null || !OscReceiver.hasNewState || _loading || TotalFrames == 0) return;
+
+        // Only follow Python's clock if it's driving the same capture we have loaded,
+        // so running sonification on a different dataset doesn't yank the viewer along.
+        string loadedCaptureName = Path.GetFileName(
+            DataRootPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+        if (!string.IsNullOrEmpty(OscReceiver.currentCaptureName) &&
+            OscReceiver.currentCaptureName != loadedCaptureName)
+        {
+            return;
+        }
+
+        int targetFrame = Mathf.Clamp(OscReceiver.latestFrameIndex, 0, TotalFrames - 1);
+        if (targetFrame != _currentFrame)
+        {
+            GoToFrame(targetFrame);
         }
     }
 
@@ -409,9 +453,36 @@ public class SubretinalSequencePlayer : MonoBehaviour
             VolumeMaterial.SetFloat  ("BlinnPhongTextureZ", depth);
         }
 
-        // ── 1a. Tissue tension → Feature Volume ──────────────────────────
-        // compares this frame against the frame-0 baseline, intensity change drives the heatmap
+        // ── 1a. Numerical JSON — read early so CannulaTipDepthMM reflects THIS frame
+        // before the tension step below needs it to judge advancing vs retracting.
+        string jsonPath = Path.Combine(DataRootPath, "Numerical", frameName + ".json");
+        string json     = File.Exists(jsonPath) ? File.ReadAllText(jsonPath) : null;
+        if (json != null) ParseSpatialFromJson(json);
+
+        // ── 1b. Advance/retract direction, from this frame's depth vs. the last one we saw.
+        // Feeds TensionController.ApplyDirectionalSmoothing below.
+        // Default false (decay), not true: an invalid/lost depth reading (CannulaTipDepthMM
+        // <= 0, same signal InjectionRing3D uses to gray out the ring) must NOT be read as
+        // "still advancing" — that would hold tension up indefinitely whenever tracking is
+        // lost, which is the opposite of what "diminish when retracting" is supposed to do.
+        bool advancing = false;
+        if (_lastTensionDepthMM.HasValue && CannulaTipDepthMM > 0f)
+            advancing = CannulaTipDepthMM >= _lastTensionDepthMM.Value;
+        if (CannulaTipDepthMM > 0f) _lastTensionDepthMM = CannulaTipDepthMM;
+
+        // ── 1c. Segmentation → CPU bytes (tension needle mask) + optional Feature Volume.
+        // Loaded before tension now, since tension needs _currentSegBytes this frame.
+        // Tension and the visual overlay share the same feature-volume GPU slot, so the
+        // overlay only uploads to GPU when tension isn't already using it for display
+        // (LoadSegmentationOverlay forces it either way) — the CPU-side mask always loads.
         bool tensionOwnsFeature = ShowTissueTension && TensionController != null;
+        string segDir = Path.Combine(frameDir, "Segmentation");
+        bool showSegOverlay = LoadSegmentationOverlay || !tensionOwnsFeature;
+        if (Directory.Exists(segDir) && (tensionOwnsFeature || showSegOverlay))
+            yield return StartCoroutine(LoadSegmentationFeatureVolume(segDir, w, h, depth, showSegOverlay));
+
+        // ── 1d. Tissue tension → Feature Volume ──────────────────────────
+        // compares this frame against the frame-0 baseline, intensity change drives the heatmap
         if (tensionOwnsFeature)
         {
             if (index == 0 || _referenceVolume == null || _referenceVolume.Length != volBytes.Length)
@@ -419,15 +490,11 @@ public class SubretinalSequencePlayer : MonoBehaviour
 
             TensionController.SetTensionFromOCTDifference(
                 volBytes, _referenceVolume, w, h, depth,
-                TensionDownsample, TensionNoiseFloor, TensionGain);
-        }
+                TensionDownsample, TensionNoiseFloor, TensionGain,
+                _currentSegBytes);
 
-        // ── 1b. Segmentation → Feature Volume ────────────────────────────
-        // tension and segmentation share the same feature-volume slot, so only load
-        // masks if tension isn't already using it (LoadSegmentationOverlay forces it)
-        string segDir = Path.Combine(frameDir, "Segmentation");
-        if (Directory.Exists(segDir) && (LoadSegmentationOverlay || !tensionOwnsFeature))
-            yield return StartCoroutine(LoadSegmentationFeatureVolume(segDir, w, h, depth));
+            TensionController.ApplyDirectionalSmoothing(advancing);
+        }
 
         // ── 2. Canvas PNG ─────────────────────────────────────────────────
         string canvasPath = Path.Combine(DataRootPath, "Canvas", frameName + ".png");
@@ -453,27 +520,22 @@ public class SubretinalSequencePlayer : MonoBehaviour
                 StereoLeftPlane.sharedMaterial.mainTexture = _topViewTex;
         }
 
-        // ── 4. Numerical JSON ─────────────────────────────────────────────
-        string jsonPath = Path.Combine(DataRootPath, "Numerical", frameName + ".json");
-        string info     = $"Frame {frameName}  |  {depth} slices (step={BscanStep})\n";
-        string json     = null;
-        if (File.Exists(jsonPath))
-        {
-            json = File.ReadAllText(jsonPath);
-            info += ParseInfoFromJson(json);
-        }
+        // ── 4. Numerical JSON display (json already read + parsed in step 1a) ──────
+        string info = $"Frame {frameName}  |  {depth} slices (step={BscanStep})\n";
+        if (json != null) info += ParseInfoFromJson(json);
         if (InfoLabel != null) InfoLabel.text = info;
 
         if (json != null)
         {
             PositionCrosshair(json);
             AlignStereoLeftPlaneToCrosshair(json, _topViewTex);
-            ParseSpatialFromJson(json);
         }
 
         // ── 5. UI sync ────────────────────────────────────────────────────
         if (FrameSlider != null) FrameSlider.SetValueWithoutNotify(index);
-        if (FrameLabel  != null) FrameLabel.text = $"Frame {index:000} / {TotalFrames - 1:000}";
+        if (FrameLabel  != null) FrameLabel.text = IsLiveSyncActive
+            ? $"Frame {index:000} / {TotalFrames - 1:000}  [LIVE]"
+            : $"Frame {index:000} / {TotalFrames - 1:000}";
         SetStatus("");
 
         _loading = false;
@@ -603,8 +665,12 @@ public class SubretinalSequencePlayer : MonoBehaviour
 
     // ── Segmentation Feature Volume ───────────────────────────────────────────
 
-    IEnumerator LoadSegmentationFeatureVolume(string segDir, int w, int h, int depth)
+    IEnumerator LoadSegmentationFeatureVolume(string segDir, int w, int h, int depth, bool uploadToGpu = true)
     {
+        // Stale from a previous frame otherwise — if this frame has no segmentation, the
+        // tension mask (and any GPU overlay) should reflect that, not silently reuse old data.
+        _currentSegBytes = null;
+
         // only care about the numbered B-scan slices, skip stuff like cannula.png
         string[] segFiles = Directory.GetFiles(segDir, "*.png")
             .Where(f => Regex.IsMatch(Path.GetFileNameWithoutExtension(f), @"^\d+$"))
@@ -630,6 +696,12 @@ public class SubretinalSequencePlayer : MonoBehaviour
             Destroy(slice);
             if (i % yieldEvery == 0) yield return null;
         }
+
+        // CPU-side copy, kept around so tension masking can use it even when the GPU
+        // overlay (below) isn't being shown.
+        _currentSegBytes = segBytes;
+
+        if (!uploadToGpu) yield break;
 
         if (_segTex != null) Destroy(_segTex);
         _segTex            = new Texture3D(w, h, segDepth, TextureFormat.R8, false);

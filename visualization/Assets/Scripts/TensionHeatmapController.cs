@@ -25,6 +25,22 @@ public class TensionHeatmapController : MonoBehaviour
     [Range(0.9f, 1f)]
     public float TensionPercentile = 0.99f;
 
+    [Header("Directional Smoothing")]
+    [Tooltip("Byte value in the segmentation volume that marks needle/cannula pixels — " +
+             "these are excluded from the tension diff so the needle's own OCT reflection " +
+             "doesn't get counted as tissue tension.")]
+    public byte NeedleSegLabel = 1;
+
+    [Tooltip("How quickly displayed tension rises toward the raw reading while the needle " +
+             "is advancing (higher = snappier).")]
+    [Range(0.05f, 1f)]
+    public float TensionRiseRate = 0.6f;
+
+    [Tooltip("How quickly displayed tension decays toward zero while the needle is " +
+             "retracting or stationary (higher = faster decay).")]
+    [Range(0.02f, 1f)]
+    public float TensionDecayRate = 0.15f;
+
     [Header("Demo / Test Mode")]
     [Tooltip("Generate synthetic tension data so the shader can be tested before the registration team delivers real data")]
     public bool UseSyntheticData = true;
@@ -56,6 +72,10 @@ public class TensionHeatmapController : MonoBehaviour
     private readonly int[] _tensionHist = new int[256]; // reused histogram for the percentile scan
 
     private int _volW, _volH, _volD;
+
+    // Directionally-smoothed value actually shown on the gauge — distinct from the raw,
+    // instantaneous NormalizedTension computed each frame. See ApplyDirectionalSmoothing.
+    private float _smoothedTension = 0f;
 
     // 2D tension texture, updated by SetForceBasedTension()/SetDisplacementField().
     // feed into TensionOverlay2D shader's _TensionTex
@@ -173,24 +193,35 @@ public class TensionHeatmapController : MonoBehaviour
     }
 
 
-    // current    = this frame's OCT volume (1 byte per voxel, R channel)
-    // reference  = frame-0 baseline volume, same size/layout as current
-    // w, h, d    = source volume dimensions in voxels
-    // downsample = box-average factor, tension volume ends up w/n x h/n x d/n
-    // noiseFloor = intensity change below this (0-1 normalized) is just speckle, ignore it
-    // gain       = sensitivity multiplier applied after the noise floor cut
+    // current      = this frame's OCT volume (1 byte per voxel, R channel)
+    // reference    = frame-0 baseline volume, same size/layout as current
+    // w, h, d      = source volume dimensions in voxels
+    // downsample   = box-average factor, tension volume ends up w/n x h/n x d/n
+    // noiseFloor   = intensity change below this (0-1 normalized) is just speckle, ignore it
+    // gain         = sensitivity multiplier applied after the noise floor cut
+    // segmentation = optional, same size/layout as current. Voxels labeled NeedleSegLabel
+    //                are excluded from the diff — otherwise the needle's own bright OCT
+    //                reflection reads as "tension" regardless of whether it's actually
+    //                compressing tissue, since this metric has no other way to tell a
+    //                needle apart from displaced tissue.
     public void SetTensionFromOCTDifference(
         byte[] current, byte[] reference,
         int w, int h, int d,
-        int   downsample = 4,
-        float noiseFloor = 0.06f,
-        float gain       = 3f)
+        int    downsample   = 4,
+        float  noiseFloor   = 0.06f,
+        float  gain         = 3f,
+        byte[] segmentation = null)
     {
         if (current == null || reference == null) return;
         if (current.Length != w * h * d || reference.Length != w * h * d)
         {
             Debug.LogError("[TensionHeatmap] OCT volume size mismatch.");
             return;
+        }
+        if (segmentation != null && segmentation.Length != w * h * d)
+        {
+            Debug.LogWarning("[TensionHeatmap] Segmentation size mismatch — ignoring needle mask this frame.");
+            segmentation = null;
         }
 
         downsample = Mathf.Clamp(downsample, 1, 16);
@@ -223,13 +254,18 @@ public class TensionHeatmapController : MonoBehaviour
                     int row = zoff + sy * w;
                     for (int sx = sx0; sx < sx1; sx++)
                     {
-                        int diff = current[row + sx] - reference[row + sx];
+                        int voxel = row + sx;
+                        if (segmentation != null && segmentation[voxel] == NeedleSegLabel)
+                            continue; // needle pixel — skip, this block should measure tissue only
+
+                        int diff = current[voxel] - reference[voxel];
                         acc += diff < 0 ? -diff : diff;
                         cnt++;
                     }
                 }
             }
 
+            // cnt == 0 means this block is entirely needle — no tissue to measure, so no tension
             float meanDiff = cnt > 0 ? (acc / (float)cnt) / 255f : 0f; // [0,1]
             float t = Mathf.Clamp01((meanDiff - noiseFloor) * invRange * gain);
             _tensionBytesR8[di++] = (byte)(t * 255f + 0.5f);
@@ -241,6 +277,40 @@ public class TensionHeatmapController : MonoBehaviour
 
         UploadTensionR8(tw, th, td);
         ConfigureMaterial();
+    }
+
+    // Blends the just-computed raw NormalizedTension into a persistent, directionally-aware
+    // displayed value: rises toward the raw reading while advancing (real compression
+    // building), decays toward zero while retracting/stationary (mirrors tissue relaxing as
+    // the needle backs off) rather than tracking the raw per-frame diff directly, which can
+    // still read as non-zero from residual noise or imperfect tissue recovery even once the
+    // needle mask above removes its direct contribution. Call this right after
+    // SetTensionFromOCTDifference()/SetDisplacementField()/SetForceBasedTension() each frame.
+    public void ApplyDirectionalSmoothing(bool advancing)
+    {
+        float raw    = NormalizedTension;
+        float target = advancing ? raw : 0f;
+        float rate   = advancing ? TensionRiseRate : TensionDecayRate;
+
+        _smoothedTension  = Mathf.Lerp(_smoothedTension, target, rate);
+        NormalizedTension = _smoothedTension;
+        HighTensionAlert  = NormalizedTension > TensionThreshold;
+
+        // Keep the 3D heatmap in sync with the gauge. SetTensionFromOCTDifference already
+        // uploaded the raw per-voxel field; this rescales every voxel by the same ratio the
+        // scalar just moved by and re-uploads, so the whole volume fades toward blue while
+        // retracting instead of holding at whatever the raw per-frame diff happened to be.
+        // Preserves the raw field's spatial pattern (which voxels are hottest relative to
+        // each other) while its overall brightness tracks the directional trend.
+        if (_tensionBytesR8 != null && _volW * _volH * _volD == _tensionBytesR8.Length)
+        {
+            float scale = raw > 1e-4f ? Mathf.Clamp01(_smoothedTension / raw) : 0f;
+            for (int i = 0; i < _tensionBytesR8.Length; i++)
+                _tensionBytesR8[i] = (byte)(_tensionBytesR8[i] * scale);
+
+            UploadTensionR8(_volW, _volH, _volD);
+            ConfigureMaterial();
+        }
     }
 
     // overrides the scalar tension readout with a value from somewhere else (Python)

@@ -269,7 +269,9 @@ def get_needle_tip_pos_from_seg(needle_mask):
     tip_x, tip_y = xs[max_y_idx], ys[max_y_idx]
     return (float(tip_x), float(tip_y + 3))
 
-SYNC_FPS = 10.0
+# Should match the cv2.waitKey() delay in utils/util.py's handle_video_controls,
+# which is the actual pacing of the main loop this value is labeling.
+SYNC_FPS = 1.67
 
 
 def valid_sync_tip(needle_tip_pos):
@@ -672,9 +674,14 @@ def parameterize_and_sonify_oct(
                 current_rpe_line,
                 anatomical_region,
             )
+            # min/max_distance calibrated to this dataset's actual tracked range (~30-44px,
+            # confirmed by debug logging) rather than the generic 20-100px default — the real
+            # signal barely moves in absolute pixels, so it needs the full frequency range
+            # mapped onto its actual span to be audible at all.
             pulse_frequency = map_distance_to_pulse_frequency(
                 distance_to_next_layer,
-                max_distance=100.0,
+                min_distance=28.0,
+                max_distance=45.0,
                 min_freq=1.0,
                 max_freq=10.0,
             )

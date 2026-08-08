@@ -20,7 +20,7 @@ import numpy as np
 import threading
 from ioct_sonification_base import BaseIOCTSonification
 from utils.util import get_force_sum_for_frame, load_force_data, handle_video_controls
-from sonification_main import set_sonification_params, sonify_ILM_RPE, sonify_ascan, send_debug_message, start_recording, stop_recording
+from sonification_main import set_sonification_params, sonify_ILM_RPE, sonify_ascan, send_debug_message, start_recording, stop_recording, set_crackle_params
 from needle_tracker import NeedleTracker
 from utils.sim_viz import *
 from utils.util import *
@@ -39,7 +39,21 @@ if str(_SYNC_DIR) not in sys.path:
 
 from sync_sender import SyncSender
 
-SYNC_FPS = 10.0
+# Should match the cv2.waitKey() delay in utils/util.py's handle_video_controls,
+# which is the actual pacing of the main loop this value is labeling.
+SYNC_FPS = 1.67
+
+# Distinct crackle-texture cue per anatomical class (see extrapolate.py for
+# ILM_LABEL=2/RPE_LABEL=3; 0=background/vitreous, 1=needle, 4=retina interior),
+# triggered once whenever the needle tip crosses into a new region so each
+# anatomical layer has a recognizable acoustic signature, independent of the
+# per-node mass/stiffness/damping profile that already shapes the A-scan model.
+REGION_CRACKLE_CUES = {
+    0: (0.0, 0.0),   # background / vitreous - silent
+    2: (2.5, 0.6),   # ILM boundary - light crackle
+    3: (5.0, 1.2),   # RPE boundary - dense, louder crackle
+    4: (1.0, 0.3),   # retina interior - subtle texture
+}
 
 
 def valid_sync_tip(needle_tip_pos):
@@ -890,6 +904,9 @@ def parameterize_and_sonify_oct(
         if class_changed:
             print(f"⚡ Class change detected: {prev_class} → {current_class}")
             node_magnitudes *= 2.0
+            region_cue = REGION_CRACKLE_CUES.get(current_class)
+            if region_cue is not None:
+                set_crackle_params(*region_cue)
             class_changes_log.append(
                 session.create_class_change_record(
                     index,

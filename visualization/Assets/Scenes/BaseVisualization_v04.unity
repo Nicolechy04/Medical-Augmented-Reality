@@ -1745,7 +1745,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   receiver: {fileID: 900000012}
   controller: {fileID: 1792233416}
-  usePythonTension: 1
+  usePythonTension: 0
 --- !u!1 &959623345
 GameObject:
   m_ObjectHideFlags: 0
@@ -2583,7 +2583,7 @@ MonoBehaviour:
       m_Calls: []
   m_FontData:
     m_Font: {fileID: 10102, guid: 0000000000000000e000000000000000, type: 0}
-    m_FontSize: 11
+    m_FontSize: 14
     m_FontStyle: 0
     m_BestFit: 0
     m_MinSize: 10
@@ -3143,6 +3143,7 @@ GameObject:
   - component: {fileID: 1792233416}
   - component: {fileID: 1792233414}
   - component: {fileID: 1792233418}
+  - component: {fileID: 1792233419}
   m_Layer: 0
   m_Name: BaseVisualizationController
   m_TagString: Untagged
@@ -3188,7 +3189,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4bbec9ae46a1d44049a36f34055d5ea4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SubretinalSequencePlayer
-  DataRootPath: d:\TUM Exchange
+  DataRootPath: /Users/salimdaoud/Downloads/Subretinal Injection 1
   VolumeMaterial: {fileID: 2100000, guid: b5726a94cfe614c3a97e58a72a9f7c9f, type: 2}
   BscanStep: 4
   CanvasDisplay: {fileID: 0}
@@ -3223,6 +3224,7 @@ MonoBehaviour:
   PrevButton: {fileID: 841379431}
   NextButton: {fileID: 1110703912}
   PlayPauseButton: {fileID: 39014692}
+  OscReceiver: {fileID: 0}
   LateralExtentMM: 30
   DepthExtentMM: 40
   DepthAxis: 1
@@ -3294,6 +3296,32 @@ MonoBehaviour:
   GreenMin: 30
   GreenMax: 60
   YellowBand: 10
+--- !u!114 &1792233419
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1792233413}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6b43e9d012536f246bde1ea5794cfb17, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::IOCTOscReceiver
+  port: 12002
+  verboseLogging: 0
+  hasState: 0
+  hasNewState: 0
+  currentCaptureName: 
+  latestFrameIndex: -1
+  latestTimestampSeconds: 0
+  latestWarningState: unknown
+  latestNeedleTip: {x: 0, y: 0, z: 0}
+  latestNeedleTipAvailable: 0
+  latestInjectionDepth: 0
+  latestInjectionDepthAvailable: 0
+  latestTensionNormalized: 0
+  latestTensionAvailable: 0
 --- !u!1 &1800309759
 GameObject:
   m_ObjectHideFlags: 0

@@ -149,8 +149,12 @@ def handle_video_controls(paused, current_index, total_frames, show_force, use_b
     if paused:
         key = cv2.waitKey(0)  # Wait indefinitely when paused
     else:
-        key = cv2.waitKey(90)  # 10 frames per second
-        #key = cv2.waitKey(50)  # 20 frames per second
+        # 600ms ~= 1.67 fps. Deliberately slow: this is the only real pacing in the
+        # main loop, so it also sets how fast Unity's live sync advances (see
+        # SYNC_FPS in distance_ioct_sonification.py / ioct_sonification.py, which
+        # should stay in step with this value). Faster than ~5 fps and an 81-frame
+        # capture blows by too quickly to see sonification/visualization changes.
+        key = cv2.waitKey(600)
     
     # Initialize result with current states
     result = {

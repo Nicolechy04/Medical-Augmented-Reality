@@ -1,6 +1,11 @@
 // SuperCollider server for the distance-based pipeline. Python updates the
 // synth and recording state through the OSC addresses defined below.
 (
+// This pipeline only produces audio output (Python drives it via OSC control
+// messages, not live audio input), so disable input entirely to avoid sample
+// rate mismatches between mismatched input/output devices (e.g. iPhone mic).
+s.options.numInputBusChannels = 0;
+
 s.waitForBoot({
 
 	// One synth combines region-dependent timbre, deformation cues, and the

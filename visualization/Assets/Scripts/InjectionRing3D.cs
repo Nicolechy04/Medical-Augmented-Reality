@@ -37,17 +37,26 @@ public class InjectionRing3D : MonoBehaviour
     public bool ShowDefaultNeedleMesh = false;
 
     [Header("Colors")]
-    public Color SafeColor    = new Color(0.10f, 0.90f, 0.20f, 0.6f);   // glowing green
-    public Color CautionColor = new Color(1.00f, 0.78f, 0.00f, 0.6f);   // glowing amber
-    public Color DangerColor  = new Color(0.95f, 0.15f, 0.15f, 0.6f);   // glowing red
-    public Color NoDataColor  = new Color(0.55f, 0.55f, 0.55f, 0.4f);   // glowing grey
-    public Color NeedleColor  = new Color(0.85f, 0.85f, 0.90f, 0.9f);   // silver needle
-    public Color TetherColor  = new Color(0.20f, 0.60f, 1.00f, 0.5f);   // glowing blue depth tethers
+    public Color SafeColor       = new Color(0.10f, 0.90f, 0.20f, 0.6f);   // glowing green
+    public Color CautionColor    = new Color(1.00f, 0.78f, 0.00f, 0.6f);   // glowing amber
+    public Color DangerColor     = new Color(0.95f, 0.15f, 0.15f, 0.6f);   // glowing red
+    public Color NoDataColor     = new Color(0.55f, 0.55f, 0.55f, 0.4f);   // glowing grey
+    public Color SubretinalColor = new Color(0.00f, 0.80f, 1.00f, 0.70f);  // electric cyan
+    public Color NeedleColor     = new Color(0.85f, 0.85f, 0.90f, 0.9f);   // silver needle
+    public Color TetherColor     = new Color(0.20f, 0.60f, 1.00f, 0.5f);   // glowing blue depth tethers
 
     [Header("Angle Safety Zones (degrees from vertical)")]
     public float GreenMin  = 43f;   // Narrowed safety tolerance so that the real
     public float GreenMax  = 47f;   // needle angle (45-47) naturally changes states
     public float YellowBand = 5f;    // during play, creating a visible demo.
+
+    [Header("Needle Presence Detection")]
+    [Tooltip("Depth (mm) below which the needle is considered genuinely withdrawn. The tracker's sentinel writes Y=1000 when the tip is gone, which maps to depth ~= -1000mm here; real, active depth readings are always positive (> 15mm), so this sits safely below any legitimate value.")]
+    public float WithdrawnDepthThreshold = -500f;
+    [Tooltip("Consecutive frames depth must stay below WithdrawnDepthThreshold before the ring actually turns gray, so a single noisy/transient reading doesn't flip it early (e.g. while tension is still settling).")]
+    public int WithdrawnHoldFrames = 5;
+    [Tooltip("Consecutive frames the 2D angle tracker must report invalid (cannula out of frame) before the white current-direction marker actually hides, so a single dropped tracking frame doesn't flicker it.")]
+    public int AngleLostHoldFrames = 5;
 
     // ── private ───────────────────────────────────────────────────────────────
     private MeshRenderer _ringRenderer;
@@ -81,6 +90,11 @@ public class InjectionRing3D : MonoBehaviour
     // Angle smoothing for noise reduction
     private float        _smoothedAngle = -1f;
     private float        _smoothedYaw = 0f;
+
+    // Consecutive frames depth has read below WithdrawnDepthThreshold (see DepthToColor)
+    private int           _withdrawnFrameCount = 0;
+    // Consecutive frames the 2D angle tracker has reported invalid (see current-marker update)
+    private int           _angleLostFrameCount = 0;
 
     void Start()
     {
@@ -374,14 +388,28 @@ public class InjectionRing3D : MonoBehaviour
         {
             if (_smoothedAngle >= 0f)
             {
-                float currentRad = (_smoothedYaw + 180f) * Mathf.Deg2Rad;
+                // Recovery is immediate: as soon as we have a valid angle again, show it
+                // right away and reset the drop-out counter below.
+                _angleLostFrameCount = 0;
+
+                // No +180 offset here: the target marker below is placed directly from
+                // TargetYawAngle with no offset, so this must use the same convention or
+                // the two markers end up ~180 apart even when the needle is on target.
+                float currentRad = _smoothedYaw * Mathf.Deg2Rad;
                 _currentMarker.transform.localPosition = new Vector3(Mathf.Sin(currentRad) * OuterRingRadius, 0f, Mathf.Cos(currentRad) * OuterRingRadius);
                 _currentMarker.transform.localScale = Vector3.one * MarkerSize;
                 _currentMarker.SetActive(true);
             }
             else
             {
-                _currentMarker.SetActive(false);
+                // Require several consecutive invalid frames before actually hiding, so a
+                // single dropped 2D-tracking frame (cannula briefly out of frame) doesn't
+                // flicker the marker on and off.
+                _angleLostFrameCount++;
+                if (_angleLostFrameCount >= AngleLostHoldFrames)
+                {
+                    _currentMarker.SetActive(false);
+                }
             }
         }
 
@@ -445,33 +473,42 @@ public class InjectionRing3D : MonoBehaviour
 
     Color DepthToColor(float depth, float ilmDist, Color fallbackAngleColor)
     {
-        // If needle is retracted / way above the scanner's volume Z-range (e.g. depth is negative or close to 0)
-        // Note: when retracted/lost, the tracker writes Y = 1000.0, which results in depthVal = -1000.0.
-        // When active (approaching or inside), depthVal is always positive (> 15.0).
-        if (depth <= 1.0f)
+        // Needle genuinely withdrawn: the tracker sentinel writes Y = 1000, which maps to
+        // depth ~= -1000mm here (real, active depth readings are always positive, > 15mm),
+        // so WithdrawnDepthThreshold sits safely below any legitimate value and only catches
+        // true withdrawal, not an ordinary shallow-but-active reading.
+        // Require several consecutive frames below threshold before actually showing gray,
+        // so a single transient/noisy reading doesn't flip the ring early — e.g. while tension
+        // (which decays gradually, not instantly) is still settling from the approach.
+        if (depth <= WithdrawnDepthThreshold)
+        {
+            _withdrawnFrameCount++;
+        }
+        else
+        {
+            _withdrawnFrameCount = 0;
+        }
+
+        if (_withdrawnFrameCount >= WithdrawnHoldFrames)
         {
             return NoDataColor;
         }
 
-        // Target Ring represents the depth safety:
-        // Scanner top is at 0.0mm. Scanner bottom is at 40.0mm.
-        // ILM surface lies at depth ~20.0mm. RPE base layer lies at depth ~22.0mm.
-        
-        // State 1: Punctured RPE (Danger! Too Deep!)
-        if (depth >= 22.0f)
+        // Ring color follows the README spec: angle safety (green/amber/red) by default,
+        // cyan once the needle is confirmed past the ILM surface (real per-frame ILM distance
+        // measurement, not an assumed fixed depth for where the retina sits in the scan volume).
+        // Note: ilmDist can be the "lost" sentinel (float.MaxValue, see README) even while the
+        // needle tip itself is still tracked fine — that only means we can't confirm subretinal
+        // space, not that we've lost the needle. Since MaxValue is never < 0, it falls through
+        // to the angle-color default below instead of triggering a false cyan.
+        if (ilmDist < 0f)
         {
-            return DangerColor; // solid warning alarm red
-        }
-        
-        // State 2: Inside Subretinal Space (Safe Injection Zone!)
-        // If the needle is deep enough (>= 20.0mm), or we have entered past ILM (ilmDist < 0),
-        // or we lost the ILM surface tracking (ilmDist == float.MaxValue) but the needle is physically deep inside the tissue.
-        if (depth >= 20.0f || ilmDist < 0f || ilmDist == float.MaxValue)
-        {
-            return new Color(0.00f, 0.80f, 1.00f, 0.70f); // Electric Cyan
+            // Blend cyan with the angle-safety color so a dangerous approach angle stays
+            // visible even once inside the subretinal target zone.
+            return Color.Lerp(fallbackAngleColor, SubretinalColor, 0.5f);
         }
 
-        // State 3: Approaching (above retina) -> ring matches angle safety color for redundancy
+        // Approaching (still above/at the ILM) -> ring reflects angle safety directly.
         return fallbackAngleColor;
     }
 }

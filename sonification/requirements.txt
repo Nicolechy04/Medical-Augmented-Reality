@@ -5,4 +5,4 @@ matplotlib
 pandas
 python-osc
 torch
-sklearn
+scikit-learn

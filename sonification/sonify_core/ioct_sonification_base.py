@@ -1,5 +1,7 @@
 """Shared loading, geometry, tracking, and simulator helpers for both pipelines."""
 
+from __future__ import annotations
+
 import copy
 import os
 import queue
