@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using UnityEngine;
 using UnityEngine.UI;
+using TMPro;
 
 // Loads the "Subretinal Injection 1" dataset frame by frame. Each time-step
 // folder under "iOCT Microscope/Volume/" has 513 B-scan PNGs that make up one
@@ -107,9 +108,9 @@ public class SubretinalSequencePlayer : MonoBehaviour
 
     [Header("UI Bindings")]
     public Slider FrameSlider;
-    public Text   FrameLabel;
-    public Text   InfoLabel;
-    public Text   LoadingLabel;
+    public TMP_Text FrameLabel;
+    public TMP_Text InfoLabel;
+    public TMP_Text LoadingLabel;
     public Button PrevButton;
     public Button NextButton;
     public Button PlayPauseButton;
@@ -346,7 +347,7 @@ public class SubretinalSequencePlayer : MonoBehaviour
     {
         _playing   = !_playing;
         _playTimer = 0f;
-        var lbl = PlayPauseButton != null ? PlayPauseButton.GetComponentInChildren<Text>() : null;
+        var lbl = PlayPauseButton != null ? PlayPauseButton.GetComponentInChildren<TMP_Text>() : null;
         if (lbl != null) lbl.text = _playing ? "⏸" : "▶";
     }
 

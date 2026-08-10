@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
+using TMPro;
 
 // Small UI gauge for tension - just reads NormalizedTension from the
 // TensionHeatmapController every frame and updates a fill bar + text.
@@ -9,7 +10,7 @@ public class TensionGaugeUI : MonoBehaviour
 {
     public TensionHeatmapController Controller;
     public Image FillImage;
-    public Text  ValueLabel;
+    public TMP_Text ValueLabel;
 
     [Header("Colors")]
     public Color LowColor  = new Color(0.39f, 0.60f, 0.13f); // c-green 600

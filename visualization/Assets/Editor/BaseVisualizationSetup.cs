@@ -3,6 +3,7 @@ using System.IO;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEditor;
+using TMPro;
 
 /// <summary>
 /// One-click scene builder for the agreed base-visualization layout:
@@ -186,13 +187,13 @@ public static class BaseVisualizationSetup
         Button prevBtn  = MakeButton(bar, "Prev",      "<",  new Vector2( 12,  8), new Vector2( 68, 64));
         Button playBtn  = MakeButton(bar, "PlayPause", ">",  new Vector2( 76,  8), new Vector2(132, 64));
         Button nextBtn  = MakeButton(bar, "Next",      ">>", new Vector2(140,  8), new Vector2(196, 64));
-        Text   frmLabel = MakeLabel (bar, "FrameLabel", "Frame 000 / 000",
+        TMP_Text frmLabel = MakeLabel (bar, "FrameLabel", "Frame 000 / 000",
                               new Vector2(1, 0), new Vector2(1, 1),
                               new Vector2(-210, 0), new Vector2(-8, 0), 16, TextAnchor.MiddleRight);
         Slider frmSlider = MakeSlider(bar, "FrameSlider",
                               new Vector2(204, 8), new Vector2(-218, -8));
 
-        Text loadingLabel = MakeLabel(canvasGO, "LoadingLabel", "",
+        TMP_Text loadingLabel = MakeLabel(canvasGO, "LoadingLabel", "",
             new Vector2(0.5f, 1), new Vector2(0.5f, 1),
             new Vector2(-300, -44), new Vector2(300, -8), 18, TextAnchor.UpperCenter);
         loadingLabel.color = new Color(1f, 0.85f, 0.3f);
@@ -203,10 +204,10 @@ public static class BaseVisualizationSetup
             new Vector2(8, -118), new Vector2(296, -8),
             new Color(0, 0, 0, 0.55f));
 
-        Text infoLabel = MakeLabel(infoPanel, "InfoText", "-",
+        TMP_Text infoLabel = MakeLabel(infoPanel, "InfoText", "-",
             Vector2.zero, Vector2.one,
             new Vector2(8, 4), new Vector2(-8, -4), 14, TextAnchor.UpperLeft);
-        infoLabel.lineSpacing = 1.3f;
+        infoLabel.lineSpacing = 4f;
 
         // ── Top view + crosshair (bottom-left, fixed real-world anchor) ──
         GameObject topViewPanel = MakePanel(canvasGO, "TopViewPanel",
@@ -214,7 +215,7 @@ public static class BaseVisualizationSetup
             new Vector2(8, 80), new Vector2(228, 300),
             new Color(0, 0, 0, 0.55f));
 
-        Text topViewCaption = MakeLabel(topViewPanel, "Caption", "top view - real-world anchor",
+        TMP_Text topViewCaption = MakeLabel(topViewPanel, "Caption", "top view - real-world anchor",
             new Vector2(0, 1), new Vector2(1, 1),
             new Vector2(6, -18), new Vector2(-6, -2), 11, TextAnchor.UpperLeft);
         topViewCaption.color = new Color(0.8f, 0.8f, 0.75f);
@@ -259,7 +260,7 @@ public static class BaseVisualizationSetup
         barFillRT.anchorMax = Vector2.one;
         barFillRT.offsetMin = barFillRT.offsetMax = Vector2.zero;
 
-        Text gaugeLabel = MakeLabel(gaugePanel, "GaugeLabel", "Tension 0%",
+        TMP_Text gaugeLabel = MakeLabel(gaugePanel, "GaugeLabel", "Tension 0%",
             new Vector2(0, 0.5f), new Vector2(1, 1),
             new Vector2(8, 0), new Vector2(-8, -2), 13, TextAnchor.MiddleLeft);
 
@@ -296,7 +297,7 @@ public static class BaseVisualizationSetup
         angleBarFillRT.anchorMax = Vector2.one;
         angleBarFillRT.offsetMin = angleBarFillRT.offsetMax = Vector2.zero;
 
-        Text angleLabel = MakeLabel(anglePanel, "GaugeLabel", "Angle --",
+        TMP_Text angleLabel = MakeLabel(anglePanel, "GaugeLabel", "Angle --",
             new Vector2(0, 0.5f), new Vector2(1, 1),
             new Vector2(8, 0), new Vector2(-8, -2), 13, TextAnchor.MiddleLeft);
 
@@ -356,13 +357,12 @@ public static class BaseVisualizationSetup
 
         GameObject textGO = new GameObject("Label");
         textGO.transform.SetParent(go.transform, false);
-        Text txt = textGO.AddComponent<Text>();
+        TextMeshProUGUI txt = textGO.AddComponent<TextMeshProUGUI>();
         txt.text      = label;
-        txt.font      = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         txt.fontSize  = 20;
-        txt.fontStyle = FontStyle.Bold;
+        txt.fontStyle = FontStyles.Bold;
         txt.color     = Color.white;
-        txt.alignment = TextAnchor.MiddleCenter;
+        txt.alignment = TextAlignmentOptions.Center;
         RectTransform trt = textGO.GetComponent<RectTransform>();
         trt.anchorMin = Vector2.zero;
         trt.anchorMax = Vector2.one;
@@ -454,26 +454,42 @@ public static class BaseVisualizationSetup
         return slider;
     }
 
-    private static Text MakeLabel(GameObject parent, string name, string text,
+    private static TMP_Text MakeLabel(GameObject parent, string name, string text,
         Vector2 anchorMin, Vector2 anchorMax,
         Vector2 offsetMin, Vector2 offsetMax,
         int fontSize, TextAnchor alignment)
     {
         GameObject go = new GameObject(name);
         go.transform.SetParent(parent.transform, false);
-        Text txt = go.AddComponent<Text>();
+        TextMeshProUGUI txt = go.AddComponent<TextMeshProUGUI>();
         txt.text      = text;
-        txt.font      = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         txt.fontSize  = fontSize;
-        txt.fontStyle = FontStyle.Bold;
+        txt.fontStyle = FontStyles.Bold;
         txt.color     = Color.white;
-        txt.alignment = alignment;
+        txt.alignment = ToTmpAlignment(alignment);
         RectTransform rt = go.GetComponent<RectTransform>();
         rt.anchorMin = anchorMin;
         rt.anchorMax = anchorMax;
         rt.offsetMin = offsetMin;
         rt.offsetMax = offsetMax;
         return txt;
+    }
+
+    private static TextAlignmentOptions ToTmpAlignment(TextAnchor anchor)
+    {
+        switch (anchor)
+        {
+            case TextAnchor.UpperLeft:    return TextAlignmentOptions.TopLeft;
+            case TextAnchor.UpperCenter:  return TextAlignmentOptions.Top;
+            case TextAnchor.UpperRight:   return TextAlignmentOptions.TopRight;
+            case TextAnchor.MiddleLeft:   return TextAlignmentOptions.Left;
+            case TextAnchor.MiddleCenter: return TextAlignmentOptions.Center;
+            case TextAnchor.MiddleRight:  return TextAlignmentOptions.Right;
+            case TextAnchor.LowerLeft:    return TextAlignmentOptions.BottomLeft;
+            case TextAnchor.LowerCenter:  return TextAlignmentOptions.Bottom;
+            case TextAnchor.LowerRight:   return TextAlignmentOptions.BottomRight;
+            default:                      return TextAlignmentOptions.Center;
+        }
     }
 
     static RectTransform MakeCrosshairLine(GameObject parent, string name)

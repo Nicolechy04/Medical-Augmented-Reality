@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
+using TMPro;
 
 /// <summary>
 /// Angle gauge bar — reads SubretinalSequencePlayer.InjectionAngleDeg
@@ -18,7 +19,7 @@ public class AngleGaugeUI : MonoBehaviour
 
     [Header("UI Elements")]
     public Image FillImage;
-    public Text  ValueLabel;
+    public TMP_Text ValueLabel;
 
     [Header("Angle Safety Zones")]
     public float GreenMin   = 30f;

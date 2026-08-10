@@ -2,17 +2,18 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using TMPro;
 
 public class FrameDisplay : MonoBehaviour
 {
     public Slider slider;
-    private Text textObj;
+    private TMP_Text textObj;
     private float frame = 0.0f;
 
     // Start is called before the first frame update
     void Start()
     {
-        textObj = GetComponent<Text>();
+        textObj = GetComponent<TMP_Text>();
         UpdateFrameDisplay();
 
     }
